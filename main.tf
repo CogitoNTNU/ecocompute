@@ -5,15 +5,21 @@ terraform {
       version = "~> 3.0"
     }
   }
-}
 
+  backend "azurerm" {
+    resource_group_name  = "terraform-state-rg"
+    storage_account_name = "ecocomputetfstate1234"
+    container_name       = "tfstate"
+    key                  = "ecocompute.tfstate"
+    use_azuread_auth = true
+  }
+}
 
 provider "azurerm" {
-    features {}
+  features {}
 }
 
-
 resource "azurerm_resource_group" "example" {
-  name     = "example-resources"
-  location = "Europe West"
+  name     = "EcoCompute-test123"
+  location = "austriaeast"
 }

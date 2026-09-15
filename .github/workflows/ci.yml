@@ -1,0 +1,5 @@
+- name: Terraform init
+  run: |
+    terraform init \
+      -backend-config=backend.tfvars
+  working-directory: ./sigurd_edvard

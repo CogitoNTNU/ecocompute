@@ -1,5 +1,16 @@
-- name: Terraform init
-  run: |
-    terraform init \
-      -backend-config=backend.tfvars
-  working-directory: ./sigurd_edvard
+name: Terraform deployment
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform init
+        run: |
+          terraform init \
+            -backend-config=backend.tfvars
+        working-directory: ./sigurd_edvard

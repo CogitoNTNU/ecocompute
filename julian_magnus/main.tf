@@ -1,25 +1,23 @@
-terraform {
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 3.0"
-    }
-  }
-
-  backend "azurerm" {
-    resource_group_name  = "terraform-state-rg"
-    storage_account_name = "ecocomputetfstate1234"
-    container_name       = "tfstate"
-    key                  = "ecocompute.tfstate"
-    use_azuread_auth = true
-  }
-}
-
-provider "azurerm" {
-  features {}
-}
-
 resource "azurerm_resource_group" "example" {
-  name     = "EcoCompute-test123"
-  location = "austriaeast"
+  name     = var.resource_group_name
+  location = var.location
+}
+
+resource "azurerm_network_security_group" "example" {
+  name                = "example-nsg"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+}
+
+resource "azurerm_virtual_network" "example" {
+  name                = "example-vnet"
+  address_space       = var.address_space
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+
+    subnet {
+      name           = var.subnet_name
+      address_prefixes = var.address_prefixes
+      security_group = azurerm_network_security_group.example.id
+  }
 }

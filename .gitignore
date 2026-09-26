@@ -7,6 +7,7 @@ __pycache__/
 .terraform/
 *.tfstate
 *.tfstate.*
+*.tfplan
 
 # C extensions
 *.so
@@ -128,6 +129,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/

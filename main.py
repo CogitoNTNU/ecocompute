@@ -56,7 +56,7 @@ async def health() -> dict[str, str]:
 
 
 @app.post("/chat")
-async def chat(body: ChatRequest) -> dict[str, str]:
+async def chat(body: ChatRequest) -> dict[str, str | int]:
     try:
         response = await app.state.foundry.responses.create(
             model=app.state.deployment,
@@ -73,4 +73,9 @@ async def chat(body: ChatRequest) -> dict[str, str]:
 
     if not response.output_text:
         raise HTTPException(502, "Foundry returned no text.")
-    return {"reply": response.output_text}
+    usage = response.usage
+    return {
+        "reply": response.output_text,
+        "input_tokens": usage.input_tokens if usage else 0,
+        "output_tokens": usage.output_tokens if usage else 0,
+    }

@@ -26,4 +26,9 @@ The response is `{"reply": "..."}`.
 Keep the API key in `.env`, which is ignored by Git. GitHub Actions secrets do
 not replace your local `.env`.
 
-This API has no login. Use it locally until access control is added.
+This API has no login. The Azure setup restricts access to your test client's IP.
+
+## Azure
+
+See [Azure setup](docs/azure.md) to deploy two Container Apps with Terraform and
+compare autoscaling with one replica that stays running.

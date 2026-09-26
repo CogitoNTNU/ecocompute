@@ -37,6 +37,11 @@ class ChatRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=8000)
 
 
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.post("/chat")
 async def chat(body: ChatRequest) -> dict[str, str]:
     try:

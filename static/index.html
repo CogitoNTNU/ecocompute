@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EcoCompute</title>
+  <style>
+    body {
+      max-width: 700px;
+      margin: 60px auto;
+      padding: 0 20px;
+      font: 18px system-ui, sans-serif;
+      color: #202020;
+    }
+    textarea, select, button {
+      box-sizing: border-box;
+      width: 100%;
+      margin-top: 8px;
+      padding: 12px;
+      font: inherit;
+    }
+    textarea { min-height: 130px; resize: vertical; }
+    button { cursor: pointer; }
+    #result {
+      margin-top: 24px;
+      padding: 16px;
+      background: #f2f5f2;
+      white-space: pre-wrap;
+    }
+    #time { color: #555; }
+  </style>
+</head>
+<body>
+  <h1>EcoCompute</h1>
+  <p>Still et spørsmål og sammenlign de to appene.</p>
+
+  <form id="chat-form">
+    <label for="app">App</label>
+    <select id="app">
+      <option value="autoscale">Autoscale</option>
+      <option value="always-on">Always-on</option>
+    </select>
+
+    <label for="prompt">Spørsmål</label>
+    <textarea id="prompt" required></textarea>
+
+    <button type="submit">Send</button>
+  </form>
+
+  <p id="time"></p>
+  <div id="result" hidden></div>
+
+  <script>
+    const form = document.querySelector("#chat-form");
+    const result = document.querySelector("#result");
+    const time = document.querySelector("#time");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const button = form.querySelector("button");
+      const app = document.querySelector("#app").value;
+      const prompt = document.querySelector("#prompt").value;
+      const url = new URL("/chat", window.location.origin);
+      url.hostname = url.hostname.replace(
+        /ecocompute-(autoscale|always-on)/,
+        `ecocompute-${app}`
+      );
+
+      button.disabled = true;
+      result.hidden = false;
+      result.textContent = "Venter på svar ...";
+      time.textContent = "";
+      const start = performance.now();
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || "Noe gikk galt");
+
+        result.textContent = data.reply;
+        time.textContent = `${app}: ${((performance.now() - start) / 1000).toFixed(2)} sekunder`;
+      } catch (error) {
+        result.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

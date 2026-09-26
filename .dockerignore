@@ -2,3 +2,5 @@
 !Dockerfile
 !requirements.txt
 !main.py
+!static/
+!static/index.html

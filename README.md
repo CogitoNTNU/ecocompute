@@ -106,7 +106,7 @@ Foundry usage. The app does not claim to detect cold starts or live replica coun
 make test             # Backend/API and frontend unit tests
 make test-e2e         # Browser tests; starts its own server on port 4173
 make check            # Formatting checks, production build and all app tests
-make terraform-check # Provider initialization and validation only; no deployment
+make terraform-check # Provider initialization, validation and mocked tests; no deployment
 ```
 
 Tests mock Foundry and Azure billing; they do not make paid API calls.

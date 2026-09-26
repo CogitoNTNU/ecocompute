@@ -17,7 +17,7 @@ help:
 	  'make check           Run formatting checks, build and all application tests' \
 	  'make build           Build the production React bundle' \
 	  'make format          Format Python, React and CSS source' \
-	  'make terraform-check Initialize providers and validate; never deploy' \
+	  'make terraform-check Validate Terraform and run mocked tests; never deploy' \
 	  'Ports: make dev BACKEND_PORT=8001 FRONTEND_PORT=5174'
 
 setup:
@@ -72,3 +72,4 @@ terraform-check:
 	terraform -chdir=infra/terraform/azure fmt -check -recursive
 	terraform -chdir=infra/terraform/azure init -backend=false
 	terraform -chdir=infra/terraform/azure validate
+	terraform -chdir=infra/terraform/azure test

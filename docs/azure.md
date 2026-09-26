@@ -58,11 +58,19 @@ coordinating existing state and the initial image bootstrap.
 ## Billing access
 
 `enable_cost_reporting` defaults to `true`. Terraform gives each app a
-system-assigned managed identity and grants **Cost Management Reader** at the
+dedicated user-assigned managed identity and grants **Cost Management Reader** at the
 current subscription. This is read-only billing access; the service queries only
 its configured resource IDs. Set the variable to `false` if you do not want the
 role assignment or cost integration. Azure billing policies may additionally
 restrict cost visibility for your subscription or agreement type.
+
+The identity is created independently of the Container App. Role assignments use
+its principal ID, while the app's `AZURE_CLIENT_ID` selects that identity for
+`DefaultAzureCredential`. This avoids depending on a null system-assigned
+principal ID when updating an existing app. Terraform manages these client IDs;
+they are different from the GitHub deployment identity's `AZURE_CLIENT_ID`.
+Deploying this change replaces each app's system-assigned identity with its
+dedicated user-assigned identity and updates any existing billing role assignment.
 
 The configured subscription is derived from the authenticated Terraform identity;
 it must be the intended subscription (`7ec1bafb-324b-43b8-9c30-76e35b9d38cd` for
@@ -96,7 +104,12 @@ resource map from `terraform output -json cost_resource_ids` into
 terraform -chdir=infra/terraform/azure init -backend=false
 terraform -chdir=infra/terraform/azure fmt -check -recursive
 terraform -chdir=infra/terraform/azure validate
+terraform -chdir=infra/terraform/azure test
 ```
+
+The Terraform tests mock Azure and check identity attachment, credential selection
+and billing roles with reporting enabled and disabled. `make terraform-check`
+runs these checks locally, and CI runs them before deployment.
 
 Before a real plan/apply, run `terraform -chdir=infra/terraform/azure init` to
 initialize the remote backend. Changing directory did not change resource

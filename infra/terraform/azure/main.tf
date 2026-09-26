@@ -44,12 +44,24 @@ locals {
 
 data "azurerm_client_config" "current" {}
 
+resource "azurerm_user_assigned_identity" "app" {
+  for_each = local.apps
+
+  name                = "ecocompute-${each.key}"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+}
+
 resource "azurerm_role_assignment" "cost_reader" {
   for_each = var.enable_cost_reporting ? local.apps : {}
 
   scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
   role_definition_name = "Cost Management Reader"
-  principal_id         = azurerm_container_app.main[each.key].identity[0].principal_id
+  # Use the standalone identity so adding identity to an existing app does not
+  # depend on a potentially null Container App principal_id during planning.
+  principal_id                     = azurerm_user_assigned_identity.app[each.key].principal_id
+  principal_type                   = "ServicePrincipal"
+  skip_service_principal_aad_check = true
 }
 
 resource "azurerm_container_app" "main" {
@@ -61,7 +73,8 @@ resource "azurerm_container_app" "main" {
   revision_mode                = "Single"
 
   identity {
-    type = "SystemAssigned"
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.app[each.key].id]
   }
 
   secret {
@@ -137,6 +150,11 @@ resource "azurerm_container_app" "main" {
       env {
         name  = "CORS_ORIGINS"
         value = join(",", var.additional_frontend_origins)
+      }
+
+      env {
+        name  = "AZURE_CLIENT_ID"
+        value = azurerm_user_assigned_identity.app[each.key].client_id
       }
 
       env {

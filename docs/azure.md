@@ -19,9 +19,11 @@ Both apps use the same Docker image, CPU and memory.
    - `TF_VAR_SUBSCRIPTION_ID`
    - `AZURE_OPENAI_API_KEY`
 4. Add these variables:
-   - `AZURE_RESOURCE_GROUP`: name of the resource group
    - `ALLOWED_IP_CIDR`: your public IP address followed by `/32`
 5. Go to **Actions > Deploy to Azure > Run workflow**.
+
+Terraform creates a resource group named `ecocompute-rg-xxxxxx`. The last six
+characters are generated once and stay the same on later deployments.
 
 The app URLs are shown at the end of the workflow. Add `/docs` to a URL to test
 the API.

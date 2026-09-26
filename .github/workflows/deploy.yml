@@ -66,7 +66,11 @@ jobs:
       - name: Build image
         run: |
           registry=$(terraform output -raw registry_name)
-          az acr build --registry "$registry" --image "ecocompute:$TF_VAR_image_tag" --file backend/Dockerfile "$GITHUB_WORKSPACE"
+          az acr build \
+            --registry "$registry" \
+            --image "ecocompute:$TF_VAR_image_tag" \
+            --file "$GITHUB_WORKSPACE/backend/Dockerfile" \
+            "$GITHUB_WORKSPACE"
 
       - name: Plan deployment
         run: terraform plan -out=deploy.tfplan

@@ -1,131 +1,72 @@
-<!-- TODO: CHANGE ALL INSTANCES OF "PROJECT-TEMPLATE" IN ENTIRE PROJECT TO YOUR PROJECT TITLE-->
+# EcoCompute
 
-# PROJECT-TEMPLATE
+A small FastAPI backend that calls our `gpt-4.1-nano` deployment in Microsoft
+Foundry. Azure network infrastructure lives in `julian_magnus/`.
 
-<div align="center">
+## Run locally
 
-![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/CogitoNTNU/PROJECT-TEMPLATE/ci.yml)
-![GitHub top language](https://img.shields.io/github/languages/top/CogitoNTNU/PROJECT-TEMPLATE)
-![GitHub language count](https://img.shields.io/github/languages/count/CogitoNTNU/PROJECT-TEMPLATE)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Project Version](https://img.shields.io/badge/version-0.0.1-blue)](https://img.shields.io/badge/version-0.0.1-blue)
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+From the repository root:
 
-<img src="docs/images/project-logo.webp" width="50%" alt="Cogito Project Logo" style="display: block; margin-left: auto; margin-right: auto;">
-</div>
-
-<details> 
-<summary><b>📋 Table of contents </b></summary>
-
-- [PROJECT-TEMPLATE](#PROJECT-TEMPLATE)
-  - [Description](#description)
-  - [🛠️ Prerequisites](#%EF%B8%8F-prerequisites)
-  - [Getting started](#getting-started)
-  - [Usage](#usage)
-    - [📖 Generate Documentation Site](#-generate-documentation-site)
-  - [Testing](#testing)
-  - [Team](#team)
-    - [License](#license)
-
-</details>
-
-## Description
-
-<!-- TODO: Provide a brief overview of what this project does and its key features. Please add pictures or videos of the application -->
-
-## 🛠️ Prerequisites
-
-<!-- TODO: In this section you put what is needed for the program to run.
-For example: OS version, programs, libraries, etc.  
-
--->
-
-- **Git**: Ensure that git is installed on your machine. [Download Git](https://git-scm.com/downloads)
-- **Python 3.12**: Required for the project. [Download Python](https://www.python.org/downloads/)
-- **UV**: Used for managing Python environments. [Install UV](https://docs.astral.sh/uv/getting-started/installation/)
-- **Docker** (optional): For DevContainer development. [Download Docker](https://www.docker.com/products/docker-desktop)
-
-## Getting started
-
-<!-- TODO: In this Section you describe how to install this project in its intended environment.(i.e. how to get it to run)  
--->
-
-1. **Clone the repository**:
-
-   ```sh
-   git clone https://github.com/CogitoNTNU/PROJECT-TEMPLATE.git
-   cd PROJECT-TEMPLATE
-   ```
-
-1. **Install dependencies**:
-
-   ```sh
-   uv sync
-   ```
-
-<!--
-1. **Configure environment variables**:
-    This project uses environment variables for configuration. Copy the example environment file to create your own:
-    ```sh
-    cp .env.example .env
-    ```
-    Then edit the `.env` file to include your specific configuration settings.
--->
-
-1. **Set up pre commit** (only for development):
-   ```sh
-   uv run pre-commit install
-   ```
-
-## Usage
-
-To run the project, run the following command from the root directory of the project:
-
-```bash
-
+```sh
+uv venv
+uv pip install -r requirements.txt
 ```
 
-<!-- TODO: Instructions on how to run the project and use its features. -->
+Copy `.env.example` to `.env` and fill in `AZURE_OPENAI_API_KEY`. The endpoint and
+deployment name are already filled in. The deployment name must match the name in
+Foundry; update it if your deployment uses a different name. Terraform variables
+can stay empty when running the API locally.
 
-### 📖 Generate Documentation Site
+Start the API:
 
-To build and preview the documentation site locally:
-
-```bash
-uv run mkdocs build
-uv run mkdocs serve
+```sh
+uv run uvicorn main:app --reload
 ```
 
-This will build the documentation and start a local server at [http://127.0.0.1:8000/](http://127.0.0.1:8000/) where you can browse the docs and API reference. Get the documentation according to the lastes commit on main by viewing the `gh-pages` branch on GitHub: [https://cogitontnu.github.io/PROJECT-TEMPLATE/](https://cogitontnu.github.io/PROJECT-TEMPLATE/).
+Open http://127.0.0.1:8000/docs, expand `POST /chat`, click **Try it out**, and send:
 
-## Testing
-
-To run the test suite, run the following command from the root directory of the project:
-
-```bash
-uv run pytest --doctest-modules --cov=src --cov-report=html
+```json
+{"prompt": "Explain serverless computing in one sentence."}
 ```
 
-## Team
+The response is `{"reply": "..."}`. Each request calls Foundry and can incur model
+usage charges. The API limits the prompt to 8,000 characters and the response to
+512 output tokens. It uses the Azure OpenAI v1 endpoint; the Foundry project
+endpoint is not needed for these model calls.
 
-This project would not have been possible without the hard work and dedication of all of the contributors. Thank you for the time and effort you have put into making this project a reality.
+The service is a local starting point with no user authentication. Keep it local
+or behind authenticated/private ingress when hosting it.
 
-<table align="center">
-    <tr>
-        <!--
-        <td align="center">
-            <a href="https://github.com/NAME_OF_MEMBER">
-              <img src="https://github.com/NAME_OF_MEMBER.png?size=100" width="100px;" alt="NAME OF MEMBER"/><br />
-              <sub><b>NAME OF MEMBER</b></sub>
-            </a>
-        </td>
-        -->
-    </tr>
-</table>
+## Environment variables and GitHub Secrets
 
-![Group picture](docs/img/team.png)
+| Variable | Value |
+| --- | --- |
+| `AZURE_OPENAI_BASE_URL` | `https://ecollm.openai.azure.com/openai/v1/` |
+| `AZURE_OPENAI_API_KEY` | The resource API key from Foundry |
+| `AZURE_OPENAI_DEPLOYMENT` | `gpt-4.1-nano` (the deployment name) |
 
-### License
+Locally, put these values in `.env`. That file is ignored by Git. Existing process
+environment variables take precedence over `.env`. Keep the API key on the
+backend; never put it in browser code.
 
-______________________________________________________________________
+**GitHub Secrets work for GitHub Actions, but do not automatically become local
+or deployed application environment variables.** When a workflow needs to run
+this API, create repository secrets under **Settings > Secrets and variables >
+Actions** and explicitly map them in the relevant step:
 
-Distributed under the MIT License. See `LICENSE` for more information.
+```yaml
+env:
+  AZURE_OPENAI_BASE_URL: ${{ secrets.AZURE_OPENAI_BASE_URL }}
+  AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+  AZURE_OPENAI_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_DEPLOYMENT }}
+```
+
+All three can be Secrets, although only the API key is confidential. When hosting
+the backend, configure these environment variables on that hosting service.
+
+The existing Terraform workflow provisions and then destroys network resources
+on pushes to `main`. It does **not** deploy this API or pass it Foundry credentials.
+
+References: [Microsoft's Azure OpenAI v1 examples](https://learn.microsoft.com/en-us/azure/foundry/openai/api-version-lifecycle),
+[GitHub's Secrets documentation](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets).

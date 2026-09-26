@@ -3,12 +3,20 @@ name: Deploy to Azure
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ecocompute-terraform
   cancel-in-progress: false
 
 jobs:
+  checks:
+    name: Required application checks
+    uses: ./.github/workflows/checks.yml
+
   deploy:
+    needs: checks
     runs-on: ubuntu-latest
 
     permissions:
@@ -27,7 +35,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: julian_magnus
+        working-directory: infra/terraform/azure
 
     steps:
       - name: Checkout
@@ -58,7 +66,7 @@ jobs:
       - name: Build image
         run: |
           registry=$(terraform output -raw registry_name)
-          az acr build --registry "$registry" --image "ecocompute:$TF_VAR_image_tag" ..
+          az acr build --registry "$registry" --image "ecocompute:$TF_VAR_image_tag" --file backend/Dockerfile "$GITHUB_WORKSPACE"
 
       - name: Plan deployment
         run: terraform plan -out=deploy.tfplan

@@ -9,6 +9,10 @@ jobs:
   terraform:
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: julian_magnus
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,3 +31,7 @@ jobs:
 
       - name: Terraform Apply
         run: terraform apply -auto-approve
+
+      - name: Terraform Destroy
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: terraform destroy -auto-approve

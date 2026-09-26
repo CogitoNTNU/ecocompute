@@ -1,0 +1,1 @@
+"""EcoCompute backend application."""

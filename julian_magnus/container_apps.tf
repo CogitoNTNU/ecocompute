@@ -1,111 +1,83 @@
-resource "azurerm_container_registry" "api" {
-  name                = "ecocompute${substr(md5(azurerm_resource_group.example.id), 0, 8)}"
-  resource_group_name = azurerm_resource_group.example.name
-  location            = azurerm_resource_group.example.location
+resource "azurerm_resource_group" "main" {
+  name     = var.resource_group_name
+  location = var.location
+}
+
+resource "azurerm_container_registry" "main" {
+  name                = "ecocompute${substr(md5(azurerm_resource_group.main.id), 0, 8)}"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
   sku                 = "Basic"
-  admin_enabled       = false
+  admin_enabled       = true
 }
 
-resource "azurerm_user_assigned_identity" "image_pull" {
-  name                = "ecocompute-image-pull"
-  resource_group_name = azurerm_resource_group.example.name
-  location            = azurerm_resource_group.example.location
-}
-
-resource "azurerm_role_assignment" "image_pull" {
-  scope                = azurerm_container_registry.api.id
-  role_definition_name = "AcrPull"
-  principal_id         = azurerm_user_assigned_identity.image_pull.principal_id
-}
-
-resource "azurerm_container_app_environment" "api" {
+resource "azurerm_container_app_environment" "main" {
   name                = "ecocompute"
-  resource_group_name = azurerm_resource_group.example.name
-  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+}
 
-  workload_profile {
-    name                  = "Consumption"
-    workload_profile_type = "Consumption"
-    minimum_count         = 0
-    maximum_count         = 0
+locals {
+  apps = {
+    autoscale = { min = 0, max = 3 }
+    always-on = { min = 1, max = 1 }
   }
 }
 
-resource "azurerm_container_app" "api" {
-  for_each = {
-    autoscale = { min = 0, max = var.max_replicas }
-    always_on = { min = 1, max = 1 }
-  }
+resource "azurerm_container_app" "main" {
+  for_each = local.apps
 
-  name                         = "ecocompute-${replace(each.key, "_", "-")}"
-  resource_group_name          = azurerm_resource_group.example.name
-  container_app_environment_id = azurerm_container_app_environment.api.id
+  name                         = "ecocompute-${each.key}"
+  resource_group_name          = azurerm_resource_group.main.name
+  container_app_environment_id = azurerm_container_app_environment.main.id
   revision_mode                = "Single"
-  tags                         = { experiment = each.key }
 
-  identity {
-    type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.image_pull.id]
-  }
-
-  registry {
-    server   = azurerm_container_registry.api.login_server
-    identity = azurerm_user_assigned_identity.image_pull.id
+  secret {
+    name  = "registry-password"
+    value = azurerm_container_registry.main.admin_password
   }
 
   secret {
-    name  = "foundry-api-key"
+    name  = "foundry-key"
     value = var.azure_openai_api_key
+  }
+
+  registry {
+    server               = azurerm_container_registry.main.login_server
+    username             = azurerm_container_registry.main.admin_username
+    password_secret_name = "registry-password"
   }
 
   template {
     min_replicas = each.value.min
     max_replicas = each.value.max
 
-    http_scale_rule {
-      name                = "http"
-      concurrent_requests = "10"
-    }
-
     container {
       name   = "api"
-      image  = "${azurerm_container_registry.api.login_server}/ecocompute:${var.image_tag}"
+      image  = "${azurerm_container_registry.main.login_server}/ecocompute:${var.image_tag}"
       cpu    = 0.25
       memory = "0.5Gi"
 
       env {
         name  = "AZURE_OPENAI_BASE_URL"
-        value = var.azure_openai_base_url
+        value = "https://ecollm.openai.azure.com/openai/v1/"
       }
 
       env {
         name  = "AZURE_OPENAI_DEPLOYMENT"
-        value = var.azure_openai_deployment
+        value = "gpt-4.1-nano"
       }
 
       env {
         name        = "AZURE_OPENAI_API_KEY"
-        secret_name = "foundry-api-key"
-      }
-
-      readiness_probe {
-        transport = "HTTP"
-        port      = 8000
-        path      = "/health"
-      }
-
-      liveness_probe {
-        transport = "HTTP"
-        port      = 8000
-        path      = "/health"
+        secret_name = "foundry-key"
       }
     }
   }
 
   ingress {
-    external_enabled           = true
-    allow_insecure_connections = false
-    target_port                = 8000
+    external_enabled = true
+    target_port      = 8000
 
     ip_security_restriction {
       name             = "test-client"
@@ -118,6 +90,4 @@ resource "azurerm_container_app" "api" {
       percentage      = 100
     }
   }
-
-  depends_on = [azurerm_role_assignment.image_pull]
 }

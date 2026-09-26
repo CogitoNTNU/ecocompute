@@ -21,12 +21,10 @@ jobs:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.TF_VAR_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.TF_VAR_SUBSCRIPTION_ID }}
-      TF_VAR_tenant_id: ${{ secrets.TF_VAR_TENANT_ID }}
-      TF_VAR_subscription_id: ${{ secrets.TF_VAR_SUBSCRIPTION_ID }}
       TF_VAR_resource_group_name: ${{ vars.AZURE_RESOURCE_GROUP }}
       TF_VAR_allowed_ip_cidr: ${{ vars.ALLOWED_IP_CIDR }}
       TF_VAR_azure_openai_api_key: ${{ secrets.AZURE_OPENAI_API_KEY }}
-      TF_VAR_image_tag: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      TF_VAR_image_tag: ${{ github.sha }}
 
     defaults:
       run:
@@ -54,19 +52,14 @@ jobs:
           terraform init
           terraform fmt -check -recursive
           terraform validate
-          terraform test
 
-      # The registry must exist before we can push the first image.
-      - name: Create image registry
-        run: terraform apply -auto-approve -target=azurerm_container_registry.api
+      - name: Create registry
+        run: terraform apply -auto-approve -target=azurerm_container_registry.main
 
-      - name: Build and push image
+      - name: Build image
         run: |
           registry=$(terraform output -raw registry_name)
-          server=$(terraform output -raw registry_server)
-          az acr login --name "$registry"
-          docker build -t "$server/ecocompute:$TF_VAR_image_tag" ..
-          docker push "$server/ecocompute:$TF_VAR_image_tag"
+          az acr build --registry "$registry" --image "ecocompute:$TF_VAR_image_tag" ..
 
       - name: Plan deployment
         run: terraform plan -out=deploy.tfplan

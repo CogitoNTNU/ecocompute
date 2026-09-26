@@ -1,10 +1,17 @@
+resource "random_string" "suffix" {
+  length  = 6
+  upper   = false
+  numeric = true
+  special = false
+}
+
 resource "azurerm_resource_group" "main" {
-  name     = var.resource_group_name
+  name     = "ecocompute-rg-${random_string.suffix.result}"
   location = var.location
 }
 
 resource "azurerm_container_registry" "main" {
-  name                = "ecocompute${substr(md5(azurerm_resource_group.main.id), 0, 8)}"
+  name                = "ecocompute${random_string.suffix.result}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   sku                 = "Basic"

@@ -15,7 +15,7 @@ uv pip install -r requirements.txt
 uv run uvicorn main:app --reload
 ```
 
-Open http://127.0.0.1:8000 to use the website.
+Open http://127.0.0.1:8000 to chat and compare response time and estimated model cost.
 
 You can also open http://127.0.0.1:8000/docs and try `POST /chat`:
 

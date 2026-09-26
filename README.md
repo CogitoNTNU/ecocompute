@@ -15,7 +15,9 @@ uv pip install -r requirements.txt
 uv run uvicorn main:app --reload
 ```
 
-Open http://127.0.0.1:8000/docs and try `POST /chat`:
+Open http://127.0.0.1:8000 to use the website.
+
+You can also open http://127.0.0.1:8000/docs and try `POST /chat`:
 
 ```json
 {"prompt": "What is serverless computing?"}

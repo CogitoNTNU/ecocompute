@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from openai import APIError, APITimeoutError, AsyncOpenAI, RateLimitError
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -30,11 +32,22 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="EcoCompute", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["POST"],
+    allow_headers=["Content-Type"],
+)
 
 
 class ChatRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     prompt: str = Field(min_length=1, max_length=8000)
+
+
+@app.get("/")
+async def home() -> FileResponse:
+    return FileResponse("static/index.html")
 
 
 @app.get("/health")

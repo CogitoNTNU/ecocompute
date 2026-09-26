@@ -32,8 +32,13 @@ export function CostChart({ report }: { report: CostReport }) {
     ...new Set([0, Math.floor((report.daily.length - 1) / 2), report.daily.length - 1]),
   ];
   return (
-    <div className="cost-chart">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-labelledby="chart-title chart-desc">
+    <div className="px-[18px] pt-0 pb-[18px] mobile:px-[10px] mobile:pt-0 mobile:pb-[20px]">
+      <svg
+        className="block h-auto min-h-[210px] w-full mobile:min-h-[140px]"
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-labelledby="chart-title chart-desc"
+      >
         <title id="chart-title">Daily Azure-reported costs</title>
         <desc id="chart-desc">
           Daily costs by infrastructure and Foundry. Exact amounts are available in the daily data
@@ -83,10 +88,10 @@ export function CostChart({ report }: { report: CostReport }) {
           </text>
         ))}
       </svg>
-      <div className="chart-legend">
+      <div className="mt-[14px] flex flex-wrap justify-center gap-[21px] text-[10px] text-[#657356] mobile:gap-[12px] mobile:text-[9px]">
         {available.map((category) => (
-          <span key={category.key}>
-            <i style={{ background: category.color }} />
+          <span className="flex items-center gap-[6px]" key={category.key}>
+            <i className="h-[7px] w-[7px] rounded-[50%]" style={{ background: category.color }} />
             {category.label}
           </span>
         ))}

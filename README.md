@@ -28,6 +28,14 @@ docs/                       Architecture and deployment guides
 .github/workflows/           Validation and deployment
 ```
 
+The frontend uses Tailwind CSS through its Vite plugin. Edit utility classes in
+the React components to change their styling; shared colors, animation and
+document defaults live in `frontend/src/styles.css`. The `wide`, `compact`,
+`tablet` and `mobile` variants retain the existing 1600px, 1200px, 1000px and
+700px breakpoints. Exact pixel values and the existing base styles preserve the
+design's 14px root font size; Tailwind Preflight is intentionally omitted.
+Run `npm --prefix frontend run format` to format code and sort utility classes.
+
 ## Run locally
 
 Use Python 3.12+, uv, and Node.js 24+.

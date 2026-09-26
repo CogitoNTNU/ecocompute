@@ -91,7 +91,7 @@ test('shows disconnected billing without fabricated prices', async ({ page }) =>
   await page.goto('/costs');
   await expect(page.getByText('Billing not connected', { exact: true })).toBeVisible();
   await expect(page.getByText('Real billing data only. No sample numbers.')).toBeVisible();
-  await expect(page.locator('.stat-card strong').first()).toHaveText('—');
+  await expect(page.getByTestId('tracked-resource-spend').locator('strong')).toHaveText('—');
   await page.screenshot({ path: '/tmp/ecocompute-costs-empty.png', fullPage: true });
 });
 
@@ -118,7 +118,7 @@ test('renders actual cost charts and accessible daily data', async ({ page }) =>
   );
   await page.goto('/costs');
   await expect(page.getByRole('img', { name: 'Daily Azure-reported costs' })).toBeVisible();
-  await expect(page.locator('.stat-card strong').first()).toContainText('17.00');
+  await expect(page.getByTestId('tracked-resource-spend').locator('strong')).toContainText('17.00');
   await page.getByText('View daily billing data').click();
   await expect(page.getByRole('cell', { name: '2026-09-19', exact: true })).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 0));

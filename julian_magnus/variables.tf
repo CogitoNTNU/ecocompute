@@ -1,12 +1,30 @@
 variable "resource_group_name" {
-    type = string
-    description = "The name of the resource group."
+  type        = string
+  description = "The name of the resource group."
 }
 
-variable "location" {}
+variable "subscription_id" {
+  type        = string
+  description = "The Azure subscription ID."
+}
 
-variable "address_prefixes" {}
+variable "tenant_id" {
+  type        = string
+  description = "The Microsoft Entra tenant ID."
+}
 
-variable "subnet_name" {}
+variable "location" {
+  type = string
+}
 
-variable "address_space" {}
+variable "address_prefixes" {
+  type = string
+}
+
+variable "subnet_name" {
+  type = string
+}
+
+variable "address_space" {
+  type = list(string)
+}

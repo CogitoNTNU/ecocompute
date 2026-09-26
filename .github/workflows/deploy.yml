@@ -1,0 +1,78 @@
+name: Deploy to Azure
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ecocompute-terraform
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    name: Required application checks
+    uses: ./.github/workflows/checks.yml
+
+  deploy:
+    needs: checks
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      TF_INPUT: "false"
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.TF_VAR_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.TF_VAR_SUBSCRIPTION_ID }}
+      TF_VAR_allowed_ip_cidr: ${{ vars.ALLOWED_IP_CIDR }}
+      TF_VAR_azure_openai_api_key: ${{ secrets.AZURE_OPENAI_API_KEY }}
+      TF_VAR_image_tag: ${{ github.sha }}
+
+    defaults:
+      run:
+        working-directory: infra/terraform/azure
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.TF_VAR_TENANT_ID }}
+          subscription-id: ${{ secrets.TF_VAR_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.9.4"
+          terraform_wrapper: false
+
+      - name: Validate Terraform
+        run: |
+          terraform init
+          terraform fmt -check -recursive
+          terraform validate
+
+      - name: Create registry
+        run: terraform apply -auto-approve -target=azurerm_container_registry.main
+
+      - name: Build image
+        run: |
+          registry=$(terraform output -raw registry_name)
+          az acr build --registry "$registry" --image "ecocompute:$TF_VAR_image_tag" --file backend/Dockerfile "$GITHUB_WORKSPACE"
+
+      - name: Plan deployment
+        run: terraform plan -out=deploy.tfplan
+
+      - name: Deploy
+        run: terraform apply deploy.tfplan
+
+      - name: Show app URLs
+        run: terraform output app_urls

@@ -22,6 +22,8 @@ eggs/
 .eggs/
 lib/
 lib64/
+!frontend/src/lib/
+!frontend/src/lib/**
 parts/
 sdist/
 var/
@@ -173,6 +175,11 @@ cython_debug/
 
 # compiled output
 /dist
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+*.tsbuildinfo
+.ruff_cache/
 /tmp
 /out-tsc
 

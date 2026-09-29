@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const backendId = z.enum(['autoscale', 'always-on']);
 export const modelId = z.enum(['gpt-4.1-nano', 'gpt-6-luna']);
+const guid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 const origin = z.string().refine((value) => {
   if (value === '') return true;
   try {
@@ -33,6 +34,7 @@ export const configSchema = z.object({
   ),
   models: z.array(z.object({ id: modelId, label: z.string(), enabled: z.boolean() })),
   billing_configured: z.boolean(),
+  auth: z.object({ tenant_id: guid, client_id: guid, scope: z.string() }).nullable().optional(),
 });
 export const chatSchema = z.object({
   reply: z.string().min(1),

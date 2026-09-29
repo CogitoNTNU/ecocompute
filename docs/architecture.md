@@ -44,11 +44,15 @@ and is sent to Foundry for inference; provider retention policies still apply.
 Messages render as text, never raw HTML. Server logs include request IDs, model,
 backend, timing and token metadata, not prompts, responses or credentials.
 
-The deployment retains the existing client-IP ingress allowlist. CORS permits
-only explicitly configured origins. This is an experiment for trusted clients,
-not a public multi-user service: add user authentication and per-user quotas
-before broadening access. Browser cancellation stops waiting but does not
-promise cancellation of Azure inference or its charges.
+Both apps accept connections from any public IP. Microsoft Entra sign-in uses a
+project-owned multitenant SPA app registration. The API validates the signed access
+token's signature, issuer, audience, NTNU tenant, client, delegated scope and
+tenant-member status before any chat or billing call. An optional NTNU group can
+narrow access further. Email and username appear only in the UI; they are not
+authorization identifiers. CORS permits only explicitly configured origins.
+Authorized users can generate paid Foundry requests, so per-user quotas would be
+needed for a larger public service. Browser cancellation
+stops waiting but does not promise cancellation of Azure inference or its charges.
 
 ## Billing accuracy
 

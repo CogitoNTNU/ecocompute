@@ -32,11 +32,15 @@ def test_cors_allowlist(settings):
         headers = {
             "Origin": "https://ui.example.test",
             "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": "Content-Type",
+            "Access-Control-Request-Headers": "Content-Type,Authorization",
         }
         assert (
             client.options("/api/chat", headers=headers).headers["access-control-allow-origin"]
             == "https://ui.example.test"
+        )
+        assert (
+            "Authorization"
+            in client.options("/api/chat", headers=headers).headers["access-control-allow-headers"]
         )
         headers["Origin"] = "https://untrusted.example.test"
         assert client.options("/api/chat", headers=headers).status_code == 400
@@ -52,6 +56,7 @@ def test_request_limits_and_private_validation(settings):
 
 def test_spa_routes_and_no_api_fallback(settings, tmp_path):
     (tmp_path / "index.html").write_text("<html>React application</html>")
+    (tmp_path / "blank.html").write_text("<html></html>")
     (tmp_path / "assets").mkdir()
     (tmp_path / "assets" / "app.js").write_text("console.log('app')")
     with TestClient(create_app(replace(settings, frontend_dist=tmp_path))) as client:
@@ -60,5 +65,9 @@ def test_spa_routes_and_no_api_fallback(settings, tmp_path):
             assert response.status_code == 200 and "React application" in response.text
             assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
         assert client.get("/assets/app.js").status_code == 200
+        callback = client.get("/blank.html")
+        assert callback.status_code == 200
+        assert callback.headers.get("x-frame-options") is None
+        assert callback.headers["cache-control"] == "no-store"
         assert client.get("/api/not-real").status_code == 404
         assert client.get("/missing.js").status_code == 404

@@ -46,6 +46,13 @@ class Settings:
     cost_subscription_id: str = ""
     cost_resources: dict[str, list[str]] = field(default_factory=dict)
     frontend_dist: Path = PROJECT_ROOT / "frontend" / "dist"
+    entra_tenant_id: str = ""
+    entra_client_id: str = ""
+    entra_allowed_group_id: str = ""
+
+    @property
+    def auth_enabled(self) -> bool:
+        return bool(self.entra_tenant_id)
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -121,4 +128,24 @@ class Settings:
                 if resource_id.lower() in seen:
                     raise ValueError("A billing resource can belong to only one category.")
                 seen.add(resource_id.lower())
-        return cls(mode, urls, origins, models, subscription, resources)
+        tenant_id = os.getenv("ENTRA_TENANT_ID", "").strip()
+        client_id = os.getenv("ENTRA_CLIENT_ID", "").strip()
+        group_id = os.getenv("ENTRA_ALLOWED_GROUP_ID", "").strip()
+        if any((tenant_id, client_id, group_id)):
+            if not tenant_id or not client_id:
+                raise ValueError("ENTRA_TENANT_ID and ENTRA_CLIENT_ID must both be set.")
+            tenant_id = str(UUID(tenant_id))
+            client_id = str(UUID(client_id))
+            if group_id:
+                group_id = str(UUID(group_id))
+        return cls(
+            mode,
+            urls,
+            origins,
+            models,
+            subscription,
+            resources,
+            entra_tenant_id=tenant_id,
+            entra_client_id=client_id,
+            entra_allowed_group_id=group_id,
+        )

@@ -71,9 +71,12 @@ substituted. This local label is not an Azure scaling simulation.
 
 To use the deployed pair, set `BACKEND_URLS_JSON` using the URLs in
 `.env.example`, deploy this API version to both apps, and include your local UI
-origin in Terraform's `additional_frontend_origins`. Your public IP must also
-match the apps' ingress allowlist. Backend and model choices affect the next
-request, while conversation context stays in the current chat.
+origin in Terraform's `additional_frontend_origins`. Add the local redirect URI
+to the Entra SPA registration, and set `ENTRA_TENANT_ID` and `ENTRA_CLIENT_ID`
+in `.env`. See [organization sign-in](docs/azure.md#organization-sign-in) for the
+multitenant registration and required access-token claim.
+Backend and model choices affect the next request, while conversation context
+stays in the current chat.
 
 ## Cost explorer
 

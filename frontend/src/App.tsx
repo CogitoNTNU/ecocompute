@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { AppConfig } from './lib/contracts';
 import { api } from './lib/api';
+import { configureAuth, signIn, signOut } from './lib/auth';
 import { Icon } from './components/Icon';
 import { ChatPage } from './features/chat/ChatPage';
 import { useChat } from './features/chat/useChat';
 import { CostPage } from './features/costs/CostPage';
 
-function Workspace({ config }: { config: AppConfig }) {
+function Workspace({ config, username }: { config: AppConfig; username: string | null }) {
   const [page, setPage] = useState(location.pathname === '/costs' ? 'costs' : 'chat');
   const chat = useChat(config);
   useEffect(() => {
@@ -116,10 +117,16 @@ function Workspace({ config }: { config: AppConfig }) {
             <Icon name="chevron" size={13} />
             <strong>{page === 'chat' ? 'Chat playground' : 'Cost explorer'}</strong>
           </div>
-          <span className="flex items-center gap-[7px] rounded-[5px] border border-solid border-[#dce3d7] bg-[#f3f6ec] px-[9px] py-[5px] text-[10px] text-[#64745a] tablet:text-[9px] mobile:px-[7px] mobile:py-[3px] mobile:text-[8px]">
-            <span className="inline-block h-[6px] w-[6px] shrink-0 rounded-[100%] bg-[#82a67f]" />
-            Research environment
-          </span>
+          {username ? (
+            <button className="text-[11px] text-[#64745a] underline" onClick={() => void signOut()}>
+              {username} · Sign out
+            </button>
+          ) : (
+            <span className="flex items-center gap-[7px] rounded-[5px] border border-solid border-[#dce3d7] bg-[#f3f6ec] px-[9px] py-[5px] text-[10px] text-[#64745a] tablet:text-[9px] mobile:px-[7px] mobile:py-[3px] mobile:text-[8px]">
+              <span className="inline-block h-[6px] w-[6px] shrink-0 rounded-[100%] bg-[#82a67f]" />
+              Research environment
+            </span>
+          )}
         </header>
         <main
           id="main"
@@ -147,12 +154,31 @@ export default function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [username, setUsername] = useState<string | null>(null);
+  const [accessError, setAccessError] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     setError(null);
+    setAccessError(null);
     api
       .config(controller.signal)
-      .then(setConfig)
+      .then(async (loaded) => {
+        const account = await configureAuth(loaded.auth);
+        let authorized = false;
+        if (account && loaded.auth) {
+          try {
+            await api.me(controller.signal);
+            authorized = true;
+          } catch (failure) {
+            if (!controller.signal.aborted)
+              setAccessError(failure instanceof Error ? failure.message : 'Access denied.');
+          }
+        }
+        if (!controller.signal.aborted) {
+          setUsername(authorized ? (account?.username ?? null) : null);
+          setConfig(loaded);
+        }
+      })
       .catch((failure) => {
         if (!controller.signal.aborted)
           setError(failure instanceof Error ? failure.message : 'Could not load configuration.');
@@ -181,5 +207,42 @@ export default function App() {
         )}
       </div>
     );
-  return <Workspace config={config} />;
+  if (config.auth && !username)
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-[20px] bg-[#f4f6f0] px-[20px] text-center">
+        <span className="text-[#547b4b]">
+          <Icon name="leaf" size={30} />
+        </span>
+        <h1>Sign in to EcoCompute</h1>
+        <p className="text-[13px] text-[#637457]">
+          Use your NTNU Microsoft account to access chat and costs.
+        </p>
+        {accessError && (
+          <p role="alert" className="text-[12px] text-[#915941]">
+            {accessError}
+          </p>
+        )}
+        <button
+          className="rounded-[6px] border border-solid border-brand bg-brand px-[16px] py-[10px] text-[12px] font-medium text-white"
+          onClick={() =>
+            void signIn().catch((failure) =>
+              setError(failure instanceof Error ? failure.message : 'Sign-in failed.'),
+            )
+          }
+        >
+          Sign in with Microsoft
+        </button>
+        {accessError && (
+          <button className="text-[11px] text-[#64745a] underline" onClick={() => void signOut()}>
+            Sign out
+          </button>
+        )}
+        {error && (
+          <p role="alert" className="text-[12px] text-[#915941]">
+            {error}
+          </p>
+        )}
+      </main>
+    );
+  return <Workspace config={config} username={username} />;
 }

@@ -44,6 +44,27 @@ async function setup(page: Page) {
   await page.route('**/api/costs?*', (route) => route.fulfill({ json: empty }));
 }
 
+test('requires Microsoft sign-in before showing the workspace when Entra is configured', async ({
+  page,
+}) => {
+  await page.route('**/api/config', (route) =>
+    route.fulfill({
+      json: {
+        ...config,
+        auth: {
+          tenant_id: '00000000-0000-0000-0000-000000000010',
+          client_id: '00000000-0000-0000-0000-000000000011',
+          scope: 'api://00000000-0000-0000-0000-000000000011/access_as_user',
+        },
+      },
+    }),
+  );
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Sign in to EcoCompute' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign in with Microsoft' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Message' })).toHaveCount(0);
+});
+
 test('routes model and backend independently, retains history and records measurements', async ({
   page,
 }) => {

@@ -43,11 +43,13 @@ mock_provider "azurerm" {
 mock_provider "random" {}
 
 variables {
-  location             = "australiaeast"
-  image_tag            = "test-image"
-  allowed_ip_cidr      = "192.0.2.1/32"
-  azure_openai_api_key = "test-only-not-a-real-key"
-  foundry_resource_ids = []
+  location               = "australiaeast"
+  image_tag              = "test-image"
+  azure_openai_api_key   = "test-only-not-a-real-key"
+  entra_tenant_id        = "00000000-0000-0000-0000-000000000010"
+  entra_client_id        = "00000000-0000-0000-0000-000000000011"
+  entra_allowed_group_id = "00000000-0000-0000-0000-000000000012"
+  foundry_resource_ids   = []
 }
 
 run "billing_uses_each_apps_standalone_identity" {
@@ -55,6 +57,18 @@ run "billing_uses_each_apps_standalone_identity" {
 
   variables {
     enable_cost_reporting = true
+  }
+
+  assert {
+    condition = alltrue([
+      for app in values(azurerm_container_app.main) :
+      app.ingress[0].external_enabled &&
+      length(app.ingress[0].ip_security_restriction) == 0 &&
+      one([for env in app.template[0].container[0].env : env.value if env.name == "ENTRA_TENANT_ID"]) == var.entra_tenant_id &&
+      one([for env in app.template[0].container[0].env : env.value if env.name == "ENTRA_CLIENT_ID"]) == var.entra_client_id &&
+      one([for env in app.template[0].container[0].env : env.value if env.name == "ENTRA_ALLOWED_GROUP_ID"]) == var.entra_allowed_group_id
+    ])
+    error_message = "Both public ingress endpoints must require the same Entra configuration before paid APIs can be used."
   }
 
   assert {
@@ -115,5 +129,23 @@ run "billing_can_be_disabled" {
       one([for env in app.template[0].container[0].env : env.value if env.name == "AZURE_COST_RESOURCES_JSON"]) == "{}"
     ])
     error_message = "Disabling cost reporting must also disable billing queries in both apps."
+  }
+}
+
+run "first_rollout_keeps_existing_ip_rule" {
+  command = apply
+
+  variables {
+    public_ingress  = false
+    rollout_ip_cidr = "129.241.237.195/32"
+  }
+
+  assert {
+    condition = alltrue([
+      for app in values(azurerm_container_app.main) :
+      length(app.ingress[0].ip_security_restriction) == 1 &&
+      one(app.ingress[0].ip_security_restriction).ip_address_range == "129.241.237.195/32"
+    ])
+    error_message = "The first rollout must retain the old rule while it deploys the authenticated image."
   }
 }

@@ -2,6 +2,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Request
 
+from app.core.auth import require_user
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.schemas.costs import CostReport
 from app.services.chat import ChatService
@@ -41,15 +42,29 @@ async def public_config(request: Request) -> dict:
             {"id": model.id, "label": model.label, "enabled": model.enabled} for model in settings.models
         ],
         "billing_configured": bool(settings.cost_subscription_id and any(settings.cost_resources.values())),
+        "auth": (
+            {
+                "tenant_id": settings.entra_tenant_id,
+                "client_id": settings.entra_client_id,
+                "scope": f"api://{settings.entra_client_id}/access_as_user",
+            }
+            if settings.auth_enabled
+            else None
+        ),
     }
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.get("/me", dependencies=[Depends(require_user)])
+async def authorized_user() -> dict[str, bool]:
+    return {"authorized": True}
+
+
+@router.post("/chat", response_model=ChatResponse, dependencies=[Depends(require_user)])
 async def chat(body: ChatRequest, service: Annotated[ChatService, Depends(chat_service)]) -> ChatResponse:
     return await service.reply(body)
 
 
-@router.get("/costs", response_model=CostReport)
+@router.get("/costs", response_model=CostReport, dependencies=[Depends(require_user)])
 async def costs(
     service: Annotated[CostService, Depends(cost_service)], days: Literal["7", "30", "90"] = "30"
 ) -> CostReport:

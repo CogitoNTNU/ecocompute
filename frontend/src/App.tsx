@@ -135,7 +135,10 @@ function Workspace({ config, username }: { config: AppConfig; username: string |
           {page === 'chat' ? (
             <ChatPage config={config} chat={chat} />
           ) : (
-            <CostPage samples={chat.samples} />
+            <CostPage
+              samples={chat.samples}
+              billingUrl={config.backends.find((backend) => backend.id === 'always-on')?.url ?? ''}
+            />
           )}
         </main>
         <footer className="flex justify-between gap-[12px] px-[38px] pt-0 pb-[22px] text-[9px] text-[#6a7263] compact:px-[25px] mobile:px-[18px] mobile:pt-0 mobile:pb-[20px] mobile:text-[8px] tablet:[&>span:last-child]:hidden">

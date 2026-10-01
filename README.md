@@ -80,10 +80,11 @@ stays in the current chat.
 
 ## Cost explorer
 
-The cost page queries Azure Cost Management through the Python backend. It
+The cost page queries Azure Cost Management through the always-on Python backend. It
 shows daily, actual pre-tax costs for configured resources in a single
 subscription, in the currency Azure returns. Azure billing is delayed; the
-period excludes the current UTC day. Responses are cached for 15 minutes.
+period excludes the current UTC day. Responses are normally cached for 24 hours;
+the last successful report may remain visible longer if Azure throttles requests.
 
 Local setup:
 

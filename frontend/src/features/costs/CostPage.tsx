@@ -29,7 +29,7 @@ function exportMeasurements(samples: Sample[]) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function CostPage({ samples }: { samples: Sample[] }) {
+export function CostPage({ samples, billingUrl }: { samples: Sample[]; billingUrl: string }) {
   const [days, setDays] = useState<7 | 30 | 90>(30);
   const [report, setReport] = useState<CostReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,7 +41,7 @@ export function CostPage({ samples }: { samples: Sample[] }) {
     setError(null);
     setReport(null);
     api
-      .costs(days, controller.signal)
+      .costs(days, billingUrl, controller.signal)
       .then(setReport)
       .catch((failure) => {
         if (!controller.signal.aborted)
@@ -51,7 +51,7 @@ export function CostPage({ samples }: { samples: Sample[] }) {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [days, refresh]);
+  }, [days, billingUrl, refresh]);
   const ready = report?.status === 'ready';
   const total = ready
     ? Object.values(report.totals).reduce((sum, value) => sum + value, 0)
@@ -82,14 +82,15 @@ export function CostPage({ samples }: { samples: Sample[] }) {
             <option value={30}>Last 30 days</option>
             <option value={90}>Last 90 days</option>
           </select>
-          <button
-            className="inline-flex items-center justify-center gap-[8px] rounded-[6px] border border-solid border-[#dce2d8] bg-white p-[10px] text-[11px] font-medium whitespace-nowrap text-[#465a4c] [&:hover:not(:disabled)]:border-[#c2d0bf] [&:hover:not(:disabled)]:bg-[#eff4ed]"
-            onClick={() => setRefresh((value) => value + 1)}
-            disabled={loading}
-            aria-label="Refresh billing"
-          >
-            <Icon name="refresh" size={17} />
-          </button>
+          {error && (
+            <button
+              className="inline-flex items-center justify-center gap-[8px] rounded-[6px] border border-solid border-[#dce2d8] bg-white p-[10px] text-[11px] font-medium whitespace-nowrap text-[#465a4c] [&:hover:not(:disabled)]:border-[#c2d0bf] [&:hover:not(:disabled)]:bg-[#eff4ed]"
+              onClick={() => setRefresh((value) => value + 1)}
+              aria-label="Retry billing"
+            >
+              <Icon name="refresh" size={17} />
+            </button>
+          )}
         </div>
       </div>
       <div className="mb-[20px] flex items-center justify-between gap-[12px] text-[10px] text-[#67725e] tablet:flex-col tablet:items-start mobile:text-[9px]">
@@ -191,7 +192,7 @@ export function CostPage({ samples }: { samples: Sample[] }) {
                 {loading
                   ? 'Reading Azure Cost Management.'
                   : error
-                    ? 'Use refresh to try again. No estimated values are substituted.'
+                    ? 'Use retry to try again. No estimated values are substituted.'
                     : report?.status === 'empty'
                       ? 'Azure has no billing rows for these resources and dates. That does not mean no usage occurred.'
                       : 'Connect Azure Cost Management to see actual spend for your Container Apps and Foundry resource.'}
@@ -373,7 +374,8 @@ export function CostPage({ samples }: { samples: Sample[] }) {
         Source: Azure Cost Management · Foundry usage is billed through Azure.
         {report?.fetched_at &&
           ` Last fetched ${new Date(report.fetched_at).toLocaleString()}.`}{' '}
-        Billing responses are cached for 15 minutes.
+        Billing responses are normally cached for 24 hours. Older data may appear while Azure
+        throttles requests.
       </p>
     </>
   );

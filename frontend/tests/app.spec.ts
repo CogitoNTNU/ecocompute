@@ -109,8 +109,14 @@ test('routes model and backend independently, retains history and records measur
 
 test('shows disconnected billing without fabricated prices', async ({ page }) => {
   await setup(page);
+  const billingRequests: string[] = [];
+  await page.route('**/api/costs?*', (route) => {
+    billingRequests.push(route.request().url());
+    return route.fulfill({ json: empty });
+  });
   await page.goto('/costs');
   await expect(page.getByText('Billing not connected', { exact: true })).toBeVisible();
+  expect(billingRequests).toEqual(['https://always-on.example.test/api/costs?days=30']);
   await expect(page.getByText('Real billing data only. No sample numbers.')).toBeVisible();
   await expect(page.getByTestId('tracked-resource-spend').locator('strong')).toHaveText('—');
   await page.screenshot({ path: '/tmp/ecocompute-costs-empty.png', fullPage: true });

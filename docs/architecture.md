@@ -56,8 +56,12 @@ stops waiting but does not promise cancellation of Azure inference or its charge
 
 ## Billing accuracy
 
-The backend queries `ActualCost`, grouped daily by `ResourceId`, using a fixed
-subscription and resource allowlist. It validates pagination URLs before passing
+The always-on backend handles billing requests from either UI host, keeping the
+cache on one running service. Successful reports are cached per period for up to
+24 hours; a throttled refresh serves the last report for the same date range and
+honors Azure's retry interval before another query. The backend queries
+`ActualCost`, grouped daily by `ResourceId`, using a fixed subscription and
+resource allowlist. It validates pagination URLs before passing
 Azure tokens, rejects mixed currencies, and sums decimal amounts before converting
 them for JSON display. Empty, disconnected and failed states stay distinct.
 Missing daily rows within an otherwise valid report mean zero **reported** cost;

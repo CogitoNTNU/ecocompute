@@ -159,7 +159,8 @@ this project). Foundry resource IDs must be in that same subscription.
 Terraform assembles the two app IDs, the registry and environment IDs, and any
 `foundry_resource_ids`. It does not split shared Foundry costs across models.
 Role propagation can take time after deployment; billing errors remain visible
-and can be retried. Data is delayed and cached for 15 minutes. See
+and can be retried. Data is delayed and normally cached for 24 hours; the last
+successful report may remain visible longer if Azure throttles requests. See
 [measurement boundaries](architecture.md#billing-accuracy).
 
 ### CI fails with `roleAssignments/write` (403)

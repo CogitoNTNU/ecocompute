@@ -41,8 +41,8 @@ export const api = {
   config: (signal?: AbortSignal) => request('/api/config', configSchema, { signal }, false),
   me: (signal?: AbortSignal) =>
     request('/api/me', z.object({ authorized: z.literal(true) }), { signal }),
-  costs: (days: number, signal?: AbortSignal) =>
-    request(`/api/costs?days=${days}`, costSchema, { signal }),
+  costs: (days: number, billingUrl: string, signal?: AbortSignal) =>
+    request(`${billingUrl.replace(/\/$/, '')}/api/costs?days=${days}`, costSchema, { signal }),
   chat: (
     url: string,
     backend: BackendId,

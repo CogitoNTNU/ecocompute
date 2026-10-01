@@ -86,8 +86,8 @@ variable "foundry_models" {
       can(regex("^[a-z0-9][a-z0-9._-]{0,63}$", model.id)) &&
       length(trimspace(model.label)) > 0 && length(trimspace(model.deployment)) > 0 &&
       (model.input_usd_per_million == null) == (model.output_usd_per_million == null) &&
-      (model.input_usd_per_million == null || model.input_usd_per_million >= 0) &&
-      (model.output_usd_per_million == null || model.output_usd_per_million >= 0)
+      coalesce(model.input_usd_per_million, 0) >= 0 &&
+      coalesce(model.output_usd_per_million, 0) >= 0
     ])
     error_message = "Use unique lowercase model IDs, names and deployments; provide both nonnegative USD rates or neither."
   }

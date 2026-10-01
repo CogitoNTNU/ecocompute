@@ -18,7 +18,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
   const sessionStats = summarize(
     chat.samples.filter((sample) => sample.backend === chat.backend && sample.model === chat.model),
   );
-  const last = [...chat.messages].reverse().find((message) => message.result);
+  const lastReply = [...chat.messages].reverse().find((message) => message.result);
   const selectedModel = config.models.find((model) => model.id === chat.model);
   const modelLabel = (id: string) => config.models.find((model) => model.id === id)?.label ?? id;
   useEffect(() => {

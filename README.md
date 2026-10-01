@@ -28,8 +28,8 @@ docs/                       Architecture and deployment guides
 .github/workflows/           Validation and deployment
 ```
 
-The frontend uses Tailwind CSS through its Vite plugin. Edit utility classes in
-the React components to change their styling; shared colors, animation and
+The frontend uses Tailwind CSS through its Vite plugin. Layout details live in
+the React components; repeated controls, card styles, shared colors and
 document defaults live in `frontend/src/styles.css`. The `wide`, `compact`,
 `tablet` and `mobile` variants retain the existing 1600px, 1200px, 1000px and
 700px breakpoints. Exact pixel values and the existing base styles preserve the
@@ -42,10 +42,14 @@ Use Python 3.12+, uv, and Node.js 24+.
 
 Run `make setup` once to install dependencies, install the Chromium test browser,
 and copy `.env.example` to `.env` if one does not already exist. Existing `.env`
-values are preserved. Set the Foundry
-API key. Both deployments use `https://ecollm.openai.azure.com/openai/v1/`:
-`AZURE_OPENAI_DEPLOYMENT=gpt-4.1-nano` and
-`AZURE_OPENAI_LUNA_DEPLOYMENT=gpt-6-luna`. No key goes into the browser.
+values are preserved. Set the Foundry API key. The deployments listed in
+`AZURE_OPENAI_MODELS_JSON` use `AZURE_OPENAI_BASE_URL`; edit that JSON array to
+add or remove models on the same Foundry resource. No key goes into the browser.
+For an estimated model usage price in the selector, set both
+`input_usd_per_million` and `output_usd_per_million` for each model after checking
+the applicable Azure price sheet. An example entry is
+`{"id":"example","label":"Example","deployment":"example-deployment","input_usd_per_million":0.5,"output_usd_per_million":2}`;
+these numbers illustrate the format and are not a quoted model price.
 
 From the repository root:
 
@@ -71,16 +75,20 @@ substituted. This local label is not an Azure scaling simulation.
 
 To use the deployed pair, set `BACKEND_URLS_JSON` using the URLs in
 `.env.example`, deploy this API version to both apps, and include your local UI
-origin in Terraform's `additional_frontend_origins`. Your public IP must also
-match the apps' ingress allowlist. Backend and model choices affect the next
-request, while conversation context stays in the current chat.
+origin in Terraform's `additional_frontend_origins`. Add the local redirect URI
+to the Entra SPA registration, and set `ENTRA_TENANT_ID` and `ENTRA_CLIENT_ID`
+in `.env`. See [organization sign-in](docs/azure.md#organization-sign-in) for the
+multitenant registration and required access-token claim.
+Backend and model choices affect the next request, while conversation context
+stays in the current chat.
 
 ## Cost explorer
 
-The cost page queries Azure Cost Management through the Python backend. It
+The cost page queries Azure Cost Management through the always-on Python backend. It
 shows daily, actual pre-tax costs for configured resources in a single
 subscription, in the currency Azure returns. Azure billing is delayed; the
-period excludes the current UTC day. Responses are cached for 15 minutes.
+period excludes the current UTC day. Responses are normally cached for 24 hours;
+the last successful report may remain visible longer if Azure throttles requests.
 
 Local setup:
 

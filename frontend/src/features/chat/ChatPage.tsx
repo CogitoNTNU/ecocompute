@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import type { AppConfig } from '../../lib/contracts';
-import { backendLabels, modelLabels } from '../../lib/contracts';
+import { backendLabels } from '../../lib/contracts';
 import { formatDuration, formatNumber, summarize } from '../../lib/measurements';
+import { estimatedModelCost, formatEstimatedUsd } from '../../lib/modelPricing';
 import { Icon } from '../../components/Icon';
 import type { ChatController } from './useChat';
 import Markdown from 'react-markdown';
@@ -23,18 +24,33 @@ function normalizeMathDelimiters(content: string) {
 }
 
 export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatController }) {
-  const bottom = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLTextAreaElement>(null);
-  const stats = summarize(
+  const conversation = useRef<HTMLDivElement>(null);
+  const stayAtBottom = useRef(true);
+  const messageInput = useRef<HTMLTextAreaElement>(null);
+  const sessionStats = summarize(
     chat.samples.filter((sample) => sample.backend === chat.backend && sample.model === chat.model),
   );
   const last = [...chat.messages].reverse().find((message) => message.result);
+  const selectedModel = config.models.find((model) => model.id === chat.model);
+  const modelLabel = (id: string) => config.models.find((model) => model.id === id)?.label ?? id;
   useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (conversation.current && stayAtBottom.current) {
+      conversation.current.scrollTop = conversation.current.scrollHeight;
+    }
   }, [chat.messages, chat.pending]);
+  useEffect(() => {
+    if (!messageInput.current) return;
+    messageInput.current.style.height = 'auto';
+    messageInput.current.style.height = `${Math.min(messageInput.current.scrollHeight, 160)}px`;
+  }, [chat.draft]);
+
+  function sendMessage() {
+    stayAtBottom.current = true;
+    void chat.send();
+  }
   return (
     <>
-      <div className="mb-[30px] flex items-center justify-between gap-[20px] tablet:items-start mobile:mb-[24px] mobile:flex-wrap mobile:gap-[12px] tablet:[&_h1]:text-[25px] mobile:[&_h1]:max-w-[370px] mobile:[&_h1]:text-[25px] [&_p]:mt-[10px] [&_p]:text-[12px] [&_p]:text-[#67726b] mobile:[&_p]:max-w-[330px] mobile:[&_p]:text-[11px] mobile:[&_p]:leading-[1.8]">
+      <div className="page-intro">
         <div>
           <div className="mb-[10px] text-[10px] font-[650] tracking-[1.55px] text-[#76867b]">
             THE PLAYGROUND
@@ -43,7 +59,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
           <p>Talk to AI. Explore how your infrastructure changes the experience.</p>
         </div>
         <button
-          className="inline-flex items-center justify-center gap-[8px] rounded-[6px] border border-solid border-[#dce2d8] bg-white px-[13px] py-[9px] text-[11px] font-medium whitespace-nowrap text-[#465a4c] tablet:mt-[23px] mobile:mt-0 [&:hover:not(:disabled)]:border-[#c2d0bf] [&:hover:not(:disabled)]:bg-[#eff4ed]"
+          className="secondary-button tablet:mt-[23px] mobile:mt-0"
           onClick={chat.clear}
           disabled={chat.pending}
         >
@@ -59,7 +75,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
               Infrastructure
             </span>
           </legend>
-          <div className="flex gap-[4px] rounded-[8px] border border-solid border-[#e4e8e0] bg-[#ecefe9] p-[4px] mobile:flex">
+          <div className="choice-group">
             {config.backends.map((backend) => (
               <button
                 key={backend.id}
@@ -67,7 +83,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                 aria-pressed={chat.backend === backend.id}
                 disabled={!backend.enabled}
                 title={!backend.enabled ? 'Configure this backend URL to enable it' : undefined}
-                className="flex items-center gap-[8px] rounded-[5px] border border-solid border-transparent bg-transparent px-[11px] py-[7px] text-[11px] whitespace-nowrap text-[#647268] compact:px-[8px] compact:py-[7px] compact:text-[10px] mobile:flex-1 mobile:justify-center mobile:px-[10px] mobile:py-[8px] mobile:text-[11px] [&:hover:not(:disabled)]:bg-[#f9fbf7] [&[aria-pressed=true]]:border-[#dbe3d6] [&[aria-pressed=true]]:bg-white [&[aria-pressed=true]]:text-[#315f46] [&[aria-pressed=true]]:shadow-[0_2px_4px_#1f392607]"
+                className="choice"
                 onClick={() => chat.setBackend(backend.id)}
               >
                 <Icon name={backend.id === 'autoscale' ? 'bolt' : 'server'} size={17} />
@@ -87,31 +103,40 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
             02{' '}
             <span className="ml-[7px] text-[10px] tracking-[0.2px] text-[#687a6e]">AI model</span>
           </legend>
-          <div className="flex gap-[4px] rounded-[8px] border border-solid border-[#e4e8e0] bg-[#ecefe9] p-[4px] mobile:flex">
+          <select
+            aria-label="AI model"
+            aria-describedby="model-pricing"
+            className="w-[240px] max-w-full min-w-0 rounded-[8px] border border-solid border-[#dbe3d6] bg-white px-[12px] py-[9px] text-[11px] text-[#315f46] mobile:w-full"
+            value={chat.model}
+            onChange={(event) => chat.setModel(event.target.value)}
+          >
+            {config.models.length === 0 && <option value="">No models configured</option>}
             {config.models.map((model) => (
-              <button
-                key={model.id}
-                aria-pressed={chat.model === model.id}
-                disabled={!model.enabled}
-                title={!model.enabled ? 'Model deployment is not configured' : undefined}
-                className="flex items-center gap-[8px] rounded-[5px] border border-solid border-transparent bg-transparent px-[11px] py-[7px] text-[11px] whitespace-nowrap text-[#647268] compact:px-[8px] compact:py-[7px] compact:text-[10px] mobile:flex-1 mobile:justify-center mobile:px-[10px] mobile:py-[8px] mobile:text-[11px] [&:hover:not(:disabled)]:bg-[#f9fbf7] [&[aria-pressed=true]]:border-[#dbe3d6] [&[aria-pressed=true]]:bg-white [&[aria-pressed=true]]:text-[#315f46] [&[aria-pressed=true]]:shadow-[0_2px_4px_#1f392607]"
-                onClick={() => chat.setModel(model.id)}
-              >
-                <span
-                  className={`grid h-[16px] w-[16px] place-items-center rounded-[4px] text-[9px] font-[650] ${model.id === 'gpt-6-luna' ? 'bg-[#eeebf2] text-[#78688f]' : 'bg-[#e7efe8] text-[#4c7765]'}`}
-                >
-                  {model.id === 'gpt-6-luna' ? 'L' : 'N'}
-                </span>
+              <option key={model.id} value={model.id} disabled={!model.enabled}>
                 {model.label}
-                {!model.enabled && <span className="text-[10px] text-[#89928d]">Unavailable</span>}
-              </button>
+                {!model.enabled ? ' · Unavailable' : ''}
+              </option>
             ))}
+          </select>
+          <div
+            id="model-pricing"
+            className="mt-[7px] max-w-[350px] text-[9px] leading-[1.6] text-[#697166]"
+          >
+            {selectedModel &&
+            selectedModel.input_usd_per_million !== null &&
+            selectedModel.output_usd_per_million !== null ? (
+              <>
+                Est. {formatEstimatedUsd(estimatedModelCost(selectedModel, 1000, 1000) ?? 0)} for 1K
+                input + 1K output tokens · {formatEstimatedUsd(selectedModel.input_usd_per_million)}
+                /1M input · {formatEstimatedUsd(selectedModel.output_usd_per_million)}/1M output.
+                <br />
+                Rates configured manually; actual Azure billing may differ.
+              </>
+            ) : (
+              'Usage estimate unavailable until token rates are configured.'
+            )}
           </div>
         </fieldset>
-        <span className="ml-auto flex gap-[7px] pt-[20px] text-[10px] text-[#677268] compact:hidden">
-          <span className="inline-block h-[6px] w-[6px] shrink-0 rounded-[100%] bg-[#82a67f]" />
-          Your next request
-        </span>
       </div>
       {!chat.canSend && (
         <div className="mb-[20px] flex items-center gap-[10px] rounded-[7px] bg-[#f4efe2] px-[17px] py-[13px] text-[12px] text-[#816d3f]">
@@ -122,7 +147,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
       )}
       <div className="grid grid-cols-[minmax(0,_1fr)_272px] [align-items:start] gap-[22px] compact:grid-cols-[minmax(0,_1fr)_240px] compact:gap-[16px] tablet:grid-cols-[1fr]">
         <section
-          className="flex h-[calc(100vh_-_315px)] max-h-[900px] min-h-[590px] flex-col overflow-hidden rounded-[10px] border border-solid border-line bg-white wide:min-h-[660px] tablet:h-[600px] mobile:h-[620px] mobile:min-h-[550px]"
+          className="card flex h-[calc(100vh_-_315px)] max-h-[900px] min-h-[590px] flex-col overflow-hidden wide:min-h-[660px] tablet:h-[600px] mobile:h-[620px] mobile:min-h-[550px]"
           aria-label="AI conversation"
         >
           <div className="flex shrink-0 items-center justify-between gap-[12px] border-b [border-bottom-style:solid] border-b-[#edf0e9] px-[21px] py-[18px] compact:p-[16px] mobile:px-[13px] mobile:py-[16px] [&_p]:mt-[5px] [&_p]:text-[10px] [&_p]:text-[#68735b]">
@@ -131,14 +156,19 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                 className={`inline-block h-[6px] w-[6px] shrink-0 rounded-[100%] ${chat.backend === 'always-on' ? 'bg-[#7598b7]' : 'bg-[#82a67f]'}`}
               />
               {backendLabels[chat.backend]} <span className="text-muted">/</span>{' '}
-              {modelLabels[chat.model]}
+              {modelLabel(chat.model)}
             </span>
-            <span className="text-[8px] tracking-[1.25px] whitespace-nowrap text-[#687169] compact:text-[7px] mobile:text-[6px] mobile:tracking-[0.7px]">
+            <span className="text-[9px] tracking-[1.25px] whitespace-nowrap text-[#687169] mobile:tracking-[0.7px]">
               MICROSOFT FOUNDRY
             </span>
           </div>
           <div
+            ref={conversation}
             className="min-h-0 flex-1 [scrollbar-width:thin] [scrollbar-color:#d6dfd3_transparent] overflow-y-auto overscroll-contain px-[24px] py-[15px] mobile:px-[15px] mobile:py-[12px]"
+            onScroll={(event) => {
+              const area = event.currentTarget;
+              stayAtBottom.current = area.scrollHeight - area.scrollTop - area.clientHeight < 72;
+            }}
             role="log"
             aria-label="Conversation"
             aria-live="polite"
@@ -150,16 +180,11 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                   <Icon name="leaf" size={36} />
                   <span className="absolute top-[5px] right-[-10px] h-[10px] w-[10px] [transform:rotate(25deg)] rounded-[3px] bg-[#adc893]" />
                 </div>
-                <span className="mb-[11px] text-[8px] font-[650] tracking-[1.15px] text-[#67735f]">
-                  A SMALL QUESTION. A BIGGER PICTURE.
-                </span>
                 <h2 className="wide:text-[30px] compact:text-[23px] tablet:text-[27px] mobile:text-[23px]">
                   Let’s start a conversation.
                 </h2>
                 <p className="mt-[12px] text-[12px] leading-[1.8] text-[#687269] wide:text-[14px] mobile:text-[11px]">
-                  Choose your backend and model above.
-                  <br />
-                  Every response tells a little more of the story.
+                  Choose a backend and model, then send a message.
                 </p>
                 <div className="mt-[28px] flex max-w-[480px] gap-[10px] compact:gap-[6px] mobile:mt-[22px] mobile:w-full mobile:max-w-[300px] mobile:flex-col">
                   {prompts.map((prompt) => (
@@ -168,7 +193,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                       key={prompt}
                       onClick={() => {
                         chat.setDraft(prompt);
-                        input.current?.focus();
+                        messageInput.current?.focus();
                       }}
                     >
                       <Icon name="chat" size={17} />
@@ -224,12 +249,11 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                   <span />
                   <span />
                   <span className="ml-[8px] text-[10px] text-[#677358]">
-                    Waiting for {modelLabels[chat.model]}…
+                    Waiting for {modelLabel(chat.model)}…
                   </span>
                 </div>
               </div>
             )}
-            <div ref={bottom} />
           </div>
           <div className="px-[20px] pt-0 pb-[14px] mobile:px-[11px] mobile:pt-0 mobile:pb-[11px]">
             {chat.error && (
@@ -244,16 +268,16 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
               className="rounded-[9px] border border-solid border-[#d8e0d2] bg-white shadow-[0_2px_6px_#31422a04] [&:focus-within]:border-[#9eb698] [&:focus-within]:shadow-[0_0_0_3px_#9eb69814]"
               onSubmit={(event) => {
                 event.preventDefault();
-                void chat.send();
+                sendMessage();
               }}
             >
               <label className="sr-only" htmlFor="prompt">
                 Message
               </label>
               <textarea
-                className="max-h-[140px] min-h-[69px] w-full resize-none bg-transparent px-[16px] pt-[16px] pb-[3px] text-[12px] leading-[1.8] text-[#344d3a] [outline:none]! [border:0] placeholder:text-[#687166]"
+                className="max-h-[160px] min-h-[69px] w-full resize-none overflow-y-auto bg-transparent px-[16px] pt-[16px] pb-[3px] text-[12px] leading-[1.8] text-[#344d3a] [outline:none]! [border:0] placeholder:text-[#687166]"
                 id="prompt"
-                ref={input}
+                ref={messageInput}
                 value={chat.draft}
                 onChange={(event) => chat.setDraft(event.target.value)}
                 placeholder="Ask something. See what it takes."
@@ -263,7 +287,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
                     event.preventDefault();
-                    void chat.send();
+                    sendMessage();
                   }
                 }}
               />
@@ -272,7 +296,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                   <Icon name="globe" size={14} />
                   {backendLabels[chat.backend]}
                   <span className="text-muted">·</span>
-                  {modelLabels[chat.model]}
+                  {modelLabel(chat.model)}
                 </span>
                 {chat.pending ? (
                   <button
@@ -302,7 +326,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
           </div>
         </section>
         <aside className="grid gap-[17px] tablet:grid-cols-[1fr_1fr] mobile:grid-cols-[1fr]">
-          <section className="overflow-hidden rounded-[10px] border border-solid border-line bg-white px-[20px] py-[21px] compact:px-[15px] compact:py-[18px] mobile:p-[22px] [&_h3]:mt-[7px] [&_h3]:text-[14px]">
+          <section className="card overflow-hidden px-[20px] py-[21px] compact:px-[15px] compact:py-[18px] mobile:p-[22px] [&_h3]:mt-[7px] [&_h3]:text-[14px]">
             <div className="text-[8px] font-[650] tracking-[1.15px] text-[#76867b]">
               REQUEST JOURNEY
             </div>
@@ -337,7 +361,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                   <Icon name="globe" size={18} />
                 </span>
                 <div>
-                  <strong>{modelLabels[chat.model]}</strong>
+                  <strong>{modelLabel(chat.model)}</strong>
                   <small>Microsoft Foundry</small>
                 </div>
               </div>
@@ -351,7 +375,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
               </p>
             </div>
           </section>
-          <section className="overflow-hidden rounded-[10px] border border-solid border-line bg-white px-[20px] py-[21px] compact:px-[15px] compact:py-[18px] mobile:p-[22px] [&_h3]:mt-[7px] [&_h3]:text-[14px]">
+          <section className="card overflow-hidden px-[20px] py-[21px] compact:px-[15px] compact:py-[18px] mobile:p-[22px] [&_h3]:mt-[7px] [&_h3]:text-[14px]">
             <div className="text-[8px] font-[650] tracking-[1.15px] text-[#76867b]">
               THIS SESSION · SELECTED PAIR
             </div>
@@ -359,19 +383,19 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
             <dl className="mx-0 mt-[16px] mb-[13px] [&_dd]:m-0 [&_dd]:font-[550] [&_dd]:text-[#4b6348] [&_dd]:tabular-nums [&_dt]:text-[#667362] [&>div]:flex [&>div]:justify-between [&>div]:px-0 [&>div]:py-[8px] [&>div]:text-[11px] mobile:[&>div]:text-[12px]">
               <div>
                 <dt>Completed requests</dt>
-                <dd>{stats.completed}</dd>
+                <dd>{sessionStats.completed}</dd>
               </div>
               <div>
                 <dt>Average round trip</dt>
-                <dd>{formatDuration(stats.averageMs)}</dd>
+                <dd>{formatDuration(sessionStats.averageMs)}</dd>
               </div>
               <div>
                 <dt>Input tokens</dt>
-                <dd>{formatNumber(stats.inputTokens)}</dd>
+                <dd>{formatNumber(sessionStats.inputTokens)}</dd>
               </div>
               <div>
                 <dt>Output tokens</dt>
-                <dd>{formatNumber(stats.outputTokens)}</dd>
+                <dd>{formatNumber(sessionStats.outputTokens)}</dd>
               </div>
             </dl>
             <p className="text-[9px] leading-[1.8] text-[#697261] mobile:text-[10px]">
@@ -379,14 +403,14 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
               billing totals.
             </p>
           </section>
-          {last?.result && (
+          {lastReply?.result && (
             <div className="flex gap-[8px] p-[4px] text-[10px] text-[#58774f] tablet:col-[1/-1] [&_small]:mt-[3px] [&_small]:block [&_small]:text-[9px] [&_small]:text-[#667261]">
               <Icon name="check" size={17} />
               <span>
-                Last response via {backendLabels[last.result.backend]}
+                Last response via {backendLabels[lastReply.result.backend]}
                 <small>
-                  {formatDuration(last.result.duration_ms)} in Foundry ·{' '}
-                  {formatDuration(last.roundTripMs ?? null)} end to end
+                  {formatDuration(lastReply.result.duration_ms)} in Foundry ·{' '}
+                  {formatDuration(lastReply.roundTripMs ?? null)} end to end
                 </small>
               </span>
             </div>

@@ -29,8 +29,11 @@ jobs:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.TF_VAR_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.TF_VAR_SUBSCRIPTION_ID }}
-      TF_VAR_allowed_ip_cidr: ${{ vars.ALLOWED_IP_CIDR }}
       TF_VAR_azure_openai_api_key: ${{ secrets.AZURE_OPENAI_API_KEY }}
+      TF_VAR_entra_tenant_id: ${{ vars.ENTRA_TENANT_ID }}
+      TF_VAR_entra_client_id: ${{ vars.ENTRA_CLIENT_ID }}
+      TF_VAR_entra_allowed_group_id: ${{ vars.ENTRA_ALLOWED_GROUP_ID }}
+      TF_VAR_rollout_ip_cidr: ${{ vars.ALLOWED_IP_CIDR }}
       TF_VAR_image_tag: ${{ github.sha }}
 
     defaults:
@@ -71,6 +74,22 @@ jobs:
             --image "ecocompute:$TF_VAR_image_tag" \
             --file "$GITHUB_WORKSPACE/backend/Dockerfile" \
             "$GITHUB_WORKSPACE"
+
+      - name: Stage sign-in behind existing IP restriction
+        run: |
+          restricted=0
+          state_resources=$(terraform state list)
+          if grep -q '^azurerm_container_app.main' <<< "$state_resources"; then
+            group=$(terraform output -raw resource_group_name)
+            for app in ecocompute-always-on ecocompute-autoscale; do
+              rule_count=$(az containerapp ingress access-restriction list \
+                --resource-group "$group" --name "$app" --query 'length(@)' -o tsv)
+              if [ "$rule_count" != "0" ]; then restricted=1; fi
+            done
+          fi
+          if [ "$restricted" = "1" ]; then
+            terraform apply -auto-approve -var='public_ingress=false'
+          fi
 
       - name: Plan deployment
         run: terraform plan -out=deploy.tfplan

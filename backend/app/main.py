@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from openai import AsyncOpenAI
 
 from app.api.routes import router
+from app.core.auth import EntraTokenVerifier
 from app.core.config import Settings
 from app.core.errors import ServiceError
 from app.core.logging import configure_logging
@@ -28,9 +29,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         async with AsyncExitStack() as stack:
             clients = {}
+            client_pool: dict[tuple[str, str], AsyncOpenAI] = {}
             for model in settings.models:
-                if model.enabled:
-                    clients[model.id] = await stack.enter_async_context(
+                if not model.enabled:
+                    continue
+                connection = (model.base_url, model.api_key)
+                if connection not in client_pool:
+                    client_pool[connection] = await stack.enter_async_context(
                         AsyncOpenAI(
                             base_url=model.base_url,
                             api_key=model.api_key,
@@ -38,6 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                             max_retries=0,
                         )
                     )
+                clients[model.id] = client_pool[connection]
             app.state.chat_service = FoundryChatService(settings, clients)
             app.state.cost_service = UnconfiguredCostService()
             if settings.cost_subscription_id and any(settings.cost_resources.values()):
@@ -50,12 +56,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="EcoCompute", lifespan=lifespan)
     app.state.settings = settings
+    app.state.token_verifier = EntraTokenVerifier(settings) if settings.auth_enabled else None
     app.add_middleware(BodyLimitMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.allowed_origins),
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "Authorization"],
         max_age=86400,
     )
 
@@ -74,14 +81,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["X-Frame-Options"] = "DENY"
+        if request.url.path != "/blank.html":
+            response.headers["X-Frame-Options"] = "DENY"
         if request.url.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
         if request.url.path in {"/", "/costs"}:
             connections = " ".join(settings.backend_urls.values())
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-                f"connect-src 'self' {connections}; img-src 'self' data:; "
+                f"connect-src 'self' https://login.microsoftonline.com {connections}; "
+                "frame-src 'self' https://login.microsoftonline.com; img-src 'self' data:; "
                 "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
             )
             response.headers["Cache-Control"] = "no-cache"
@@ -108,6 +117,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=503,
             )
         return FileResponse(index)
+
+    @app.get("/blank.html", include_in_schema=False)
+    async def silent_auth_callback():
+        blank = settings.frontend_dist / "blank.html"
+        if not blank.is_file():
+            return JSONResponse({"detail": "Frontend is not built."}, status_code=503)
+        return FileResponse(
+            blank,
+            headers={
+                "Cache-Control": "no-store",
+                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'self'",
+            },
+        )
 
     return app
 

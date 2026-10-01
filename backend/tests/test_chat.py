@@ -71,6 +71,14 @@ async def test_missing_model_does_not_fall_back(settings):
     assert failure.value.status_code == 503
 
 
+async def test_unknown_valid_model_id_is_rejected_before_foundry(settings):
+    client = provider()
+    with pytest.raises(ServiceError) as failure:
+        await FoundryChatService(settings, {"gpt-6-luna": client}).reply(request(model="other-model"))
+    assert failure.value.status_code == 503
+    client.responses.create.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "error,status",
     [

@@ -1,6 +1,7 @@
 """Azure billing adapter. No estimated prices or invented model attribution."""
 
 import asyncio
+import logging
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from time import monotonic
@@ -14,6 +15,24 @@ from azure.identity.aio import DefaultAzureCredential
 from app.core.config import Settings
 from app.core.errors import ServiceError
 from app.schemas.costs import CostPoint, CostReport
+
+CACHE_SECONDS = 24 * 60 * 60
+DEFAULT_THROTTLE_SECONDS = 5 * 60
+THROTTLE_HEADERS = (
+    "x-ms-ratelimit-microsoft.costmanagement-qpu-retry-after",
+    "x-ms-ratelimit-microsoft.consumption-retry-after",
+    "Retry-After",
+)
+THROTTLE_MESSAGE = "Azure billing is rate limited. Wait before refreshing."
+logger = logging.getLogger(__name__)
+
+
+def throttle_seconds(headers: httpx.Headers) -> int:
+    for name in THROTTLE_HEADERS:
+        value = headers.get(name, "").strip()
+        if value.isdecimal():
+            return min(max(int(value), 1), CACHE_SECONDS)
+    return DEFAULT_THROTTLE_SECONDS
 
 
 class CostService(Protocol):
@@ -99,16 +118,24 @@ class AzureCostService:
         self.client = client
         self._cache: dict[int, tuple[float, CostReport]] = {}
         self._lock = asyncio.Lock()
+        self._throttled_until = 0.0
 
     async def report(self, days: int) -> CostReport:
         async with self._lock:
             cached = self._cache.get(days)
-            if cached and monotonic() - cached[0] < 900:
+            current_end = date_range(days)[1]
+            if cached and cached[1].end_date == current_end and monotonic() - cached[0] < CACHE_SECONDS:
                 return cached[1]
+            if monotonic() < self._throttled_until:
+                if cached and cached[1].end_date == current_end:
+                    return cached[1]
+                raise ServiceError(503, THROTTLE_MESSAGE)
             try:
                 async with asyncio.timeout(60):
                     result = await self._query(days)
             except ServiceError:
+                if cached and cached[1].end_date == current_end and monotonic() < self._throttled_until:
+                    return cached[1]
                 raise
             except (AzureError, httpx.HTTPError, TimeoutError):
                 raise ServiceError(
@@ -156,9 +183,12 @@ class AzureCostService:
                 url, json=body, headers={"Authorization": f"Bearer {token.token}"}
             )
             if response.status_code == 429:
-                raise ServiceError(
-                    503, "Azure billing is rate limited. Wait a few minutes before refreshing."
+                delay = throttle_seconds(response.headers)
+                self._throttled_until = monotonic() + delay
+                logger.warning(
+                    "Azure Cost Management throttled the billing query; retry after %s seconds", delay
                 )
+                raise ServiceError(503, THROTTLE_MESSAGE)
             response.raise_for_status()
             if response.status_code == 204:
                 break

@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from app.core.errors import ServiceError
+from app.services import costs
 from app.services.costs import AzureCostService, date_range, parse_cost_rows
 
 
@@ -112,3 +113,51 @@ async def test_billing_throttle_is_an_error_not_empty_data(billing_settings):
         with pytest.raises(ServiceError) as failure:
             await AzureCostService(billing_settings, credential, client).report(30)
         assert failure.value.status_code == 503
+
+
+async def test_throttle_header_prevents_repeat_requests_across_periods(billing_settings, monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(costs, "monotonic", lambda: clock[0])
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        if len(calls) == 1:
+            return httpx.Response(
+                429,
+                headers={"x-ms-ratelimit-microsoft.costmanagement-qpu-retry-after": "120"},
+            )
+        return httpx.Response(200, json=page([]))
+
+    credential = SimpleNamespace(get_token=AsyncMock(return_value=SimpleNamespace(token="fake")))
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        service = AzureCostService(billing_settings, credential, client)
+        with pytest.raises(ServiceError):
+            await service.report(30)
+        with pytest.raises(ServiceError):
+            await service.report(7)
+        assert len(calls) == 1
+        clock[0] += 120
+        assert (await service.report(7)).status == "empty"
+        assert len(calls) == 2
+
+
+async def test_throttled_refresh_uses_previous_report_without_new_azure_calls(billing_settings, monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(costs, "monotonic", lambda: clock[0])
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        if len(calls) == 1:
+            return httpx.Response(200, json=page([]))
+        return httpx.Response(429, headers={"Retry-After": "600"})
+
+    credential = SimpleNamespace(get_token=AsyncMock(return_value=SimpleNamespace(token="fake")))
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        service = AzureCostService(billing_settings, credential, client)
+        previous = await service.report(30)
+        clock[0] += costs.CACHE_SECONDS + 1
+        assert await service.report(30) is previous
+        assert await service.report(30) is previous
+        assert len(calls) == 2

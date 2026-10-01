@@ -1,19 +1,26 @@
-import type { z } from 'zod';
+import { z } from 'zod';
 import { chatSchema, configSchema, costSchema } from './contracts';
 import type { BackendId, Message, ModelId } from './contracts';
+import { accessToken } from './auth';
 
-async function request<T>(url: string, schema: z.ZodType<T>, init: RequestInit = {}): Promise<T> {
+async function request<T>(
+  url: string,
+  schema: z.ZodType<T>,
+  init: RequestInit = {},
+  authorized = true,
+): Promise<T> {
   let response: Response;
   const deadline = AbortSignal.timeout(120000);
   const signal = init.signal ? AbortSignal.any([init.signal, deadline]) : deadline;
+  const token = authorized ? await accessToken() : null;
   try {
-    response = await fetch(url, { ...init, signal, credentials: 'omit' });
+    const headers = new Headers(init.headers);
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    response = await fetch(url, { ...init, headers, signal, credentials: 'omit' });
   } catch (error) {
     if (init.signal?.aborted) throw error;
     if (deadline.aborted) throw new Error('The backend took too long to respond. Try again later.');
-    throw new Error(
-      'Could not reach the backend. Check your connection, endpoint and IP access rule.',
-    );
+    throw new Error('Could not reach the backend. Check your connection and endpoint.');
   }
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
@@ -31,9 +38,11 @@ async function request<T>(url: string, schema: z.ZodType<T>, init: RequestInit =
 }
 
 export const api = {
-  config: (signal?: AbortSignal) => request('/api/config', configSchema, { signal }),
-  costs: (days: number, signal?: AbortSignal) =>
-    request(`/api/costs?days=${days}`, costSchema, { signal }),
+  config: (signal?: AbortSignal) => request('/api/config', configSchema, { signal }, false),
+  me: (signal?: AbortSignal) =>
+    request('/api/me', z.object({ authorized: z.literal(true) }), { signal }),
+  costs: (days: number, billingUrl: string, signal?: AbortSignal) =>
+    request(`${billingUrl.replace(/\/$/, '')}/api/costs?days=${days}`, costSchema, { signal }),
   chat: (
     url: string,
     backend: BackendId,

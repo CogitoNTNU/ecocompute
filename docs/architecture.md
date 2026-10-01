@@ -6,7 +6,7 @@
 flowchart LR
     UI[React UI on always-on] -->|selected URL| A[Autoscale API: 0–3 replicas]
     UI -->|selected URL| B[Always-on API: 1 replica]
-    A -->|selected deployment| F[Microsoft Foundry: Nano or Luna]
+    A -->|selected deployment| F[Microsoft Foundry: configured models]
     B -->|selected deployment| F
     UI -->|billing page only| C[Host API: cost service]
     C -->|managed identity| M[Azure Cost Management]
@@ -32,7 +32,7 @@ There is no global framework or repository layer for data that is not persisted.
 
 ## Chat and credentials
 
-Only the two configured model IDs and known backend IDs are accepted. Foundry
+Only model IDs from the validated server-side catalog and known backend IDs are accepted. Foundry
 deployment names, endpoints and keys stay server-side. Backend identity is checked
 before inference, so a wrong URL cannot silently invalidate a comparison. The
 server rejects extra input fields, system-role messages, oversized requests and
@@ -44,16 +44,24 @@ and is sent to Foundry for inference; provider retention policies still apply.
 Messages render as text, never raw HTML. Server logs include request IDs, model,
 backend, timing and token metadata, not prompts, responses or credentials.
 
-The deployment retains the existing client-IP ingress allowlist. CORS permits
-only explicitly configured origins. This is an experiment for trusted clients,
-not a public multi-user service: add user authentication and per-user quotas
-before broadening access. Browser cancellation stops waiting but does not
-promise cancellation of Azure inference or its charges.
+Both apps accept connections from any public IP. Microsoft Entra sign-in uses a
+project-owned multitenant SPA app registration. The API validates the signed access
+token's signature, issuer, audience, NTNU tenant, client, delegated scope and
+tenant-member status before any chat or billing call. An optional NTNU group can
+narrow access further. Email and username appear only in the UI; they are not
+authorization identifiers. CORS permits only explicitly configured origins.
+Authorized users can generate paid Foundry requests, so per-user quotas would be
+needed for a larger public service. Browser cancellation
+stops waiting but does not promise cancellation of Azure inference or its charges.
 
 ## Billing accuracy
 
-The backend queries `ActualCost`, grouped daily by `ResourceId`, using a fixed
-subscription and resource allowlist. It validates pagination URLs before passing
+The always-on backend handles billing requests from either UI host, keeping the
+cache on one running service. Successful reports are cached per period for up to
+24 hours; a throttled refresh serves the last report for the same date range and
+honors Azure's retry interval before another query. The backend queries
+`ActualCost`, grouped daily by `ResourceId`, using a fixed subscription and
+resource allowlist. It validates pagination URLs before passing
 Azure tokens, rejects mixed currencies, and sums decimal amounts before converting
 them for JSON display. Empty, disconnected and failed states stay distinct.
 Missing daily rows within an otherwise valid report mean zero **reported** cost;
@@ -65,6 +73,11 @@ charges or resources without matching IDs are not included in the tracked total.
 Foundry account totals are not attributed to individual models or backends.
 Accurate per-model attribution would require deployment/meter-level billing
 records and a verified mapping; token ratios are not used to invent a split.
+The chat selector can show a separate USD estimate based on manually configured
+input and output rates per million tokens. Its 1,000-input/1,000-output example
+is for comparing model prices; actual requests can use different token counts,
+cached-token discounts or other meters. This estimate is never added to the
+Azure-reported billing chart.
 
 Session token/latency measurements cover only requests in the current tab.
 They do not represent total cloud traffic, replica count, cold-start duration,

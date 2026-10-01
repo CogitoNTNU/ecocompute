@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '../../components/Icon';
 import { api } from '../../lib/api';
-import type { CostReport, Sample } from '../../lib/contracts';
-import { backendLabels, modelLabels } from '../../lib/contracts';
+import type { AppConfig, CostReport, Sample } from '../../lib/contracts';
+import { backendLabels } from '../../lib/contracts';
 import { formatDuration, formatNumber, money, summarize } from '../../lib/measurements';
 import { categories, CostChart } from './CostChart';
 
@@ -29,20 +29,33 @@ function exportMeasurements(samples: Sample[]) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function CostPage({ samples }: { samples: Sample[] }) {
+export function CostPage({
+  samples,
+  models,
+  billingUrl,
+}: {
+  samples: Sample[];
+  models: AppConfig['models'];
+  billingUrl: string;
+}) {
   const [days, setDays] = useState<7 | 30 | 90>(30);
-  const [report, setReport] = useState<CostReport | null>(null);
+  const [loadedReport, setLoadedReport] = useState<{
+    days: number;
+    billingUrl: string;
+    report: CostReport;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [refresh, setRefresh] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    setReport(null);
     api
-      .costs(days, controller.signal)
-      .then(setReport)
+      .costs(days, billingUrl, controller.signal)
+      .then((report) => {
+        if (!controller.signal.aborted) setLoadedReport({ days, billingUrl, report });
+      })
       .catch((failure) => {
         if (!controller.signal.aborted)
           setError(failure instanceof Error ? failure.message : 'Could not load billing.');
@@ -51,16 +64,41 @@ export function CostPage({ samples }: { samples: Sample[] }) {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [days, refresh]);
-  const ready = report?.status === 'ready';
-  const total = ready
+  }, [days, billingUrl, retryCount]);
+  const report =
+    loadedReport?.days === days && loadedReport.billingUrl === billingUrl
+      ? loadedReport.report
+      : null;
+  const hasCostData = report?.status === 'ready';
+  const total = hasCostData
     ? Object.values(report.totals).reduce((sum, value) => sum + value, 0)
     : undefined;
-  const max = Math.max(0.01, ...Object.values(report?.totals ?? {}).map(Math.abs));
-  const session = summarize(samples);
+  const largestCost = Math.max(0.01, ...Object.values(report?.totals ?? {}).map(Math.abs));
+  const sessionStats = summarize(samples);
+
+  let statusText = 'Billing not connected';
+  if (loading) statusText = report ? 'Refreshing Azure billing' : 'Loading Azure billing';
+  else if (error) statusText = report ? 'Showing last billing report' : 'Billing unavailable';
+  else if (hasCostData) statusText = 'Azure-reported costs';
+  else if (report?.status === 'empty') statusText = 'Awaiting billing data';
+
+  let emptyTitle = 'Your costs will tell the story.';
+  let emptyDescription =
+    'Connect Azure Cost Management to see actual spend for your Container Apps and Foundry resource.';
+  if (loading) {
+    emptyTitle = 'Fetching your cost data…';
+    emptyDescription = 'Reading Azure Cost Management.';
+  } else if (error) {
+    emptyTitle = 'Could not load Azure costs';
+    emptyDescription = 'Use retry to try again. No estimated values are substituted.';
+  } else if (report?.status === 'empty') {
+    emptyTitle = 'No reported charges yet';
+    emptyDescription =
+      'Azure has no billing rows for these resources and dates. That does not mean no usage occurred.';
+  }
   return (
     <>
-      <div className="mb-[30px] flex items-center justify-between gap-[20px] tablet:items-start mobile:mb-[24px] mobile:flex-wrap mobile:gap-[12px] tablet:[&_h1]:text-[25px] mobile:[&_h1]:max-w-[370px] mobile:[&_h1]:text-[25px] [&_p]:mt-[10px] [&_p]:text-[12px] [&_p]:text-[#67726b] mobile:[&_p]:max-w-[330px] mobile:[&_p]:text-[11px] mobile:[&_p]:leading-[1.8]">
+      <div className="page-intro">
         <div>
           <div className="mb-[10px] text-[10px] font-[650] tracking-[1.55px] text-[#76867b]">
             THE BIGGER PICTURE
@@ -76,36 +114,32 @@ export function CostPage({ samples }: { samples: Sample[] }) {
             className="rounded-[6px] border border-solid border-[#dce2d8] bg-white py-[9px] pr-[30px] pl-[12px] text-[11px] text-[#5c6e54]"
             id="period"
             value={days}
-            onChange={(event) => setDays(Number(event.target.value) as 7 | 30 | 90)}
+            onChange={(event) => {
+              setLoading(true);
+              setDays(Number(event.target.value) as 7 | 30 | 90);
+            }}
           >
             <option value={7}>Last 7 days</option>
             <option value={30}>Last 30 days</option>
             <option value={90}>Last 90 days</option>
           </select>
-          <button
-            className="inline-flex items-center justify-center gap-[8px] rounded-[6px] border border-solid border-[#dce2d8] bg-white p-[10px] text-[11px] font-medium whitespace-nowrap text-[#465a4c] [&:hover:not(:disabled)]:border-[#c2d0bf] [&:hover:not(:disabled)]:bg-[#eff4ed]"
-            onClick={() => setRefresh((value) => value + 1)}
-            disabled={loading}
-            aria-label="Refresh billing"
-          >
-            <Icon name="refresh" size={17} />
-          </button>
+          {error && (
+            <button
+              className="secondary-button p-[10px]"
+              onClick={() => setRetryCount((value) => value + 1)}
+              aria-label="Retry billing"
+            >
+              <Icon name="refresh" size={17} />
+            </button>
+          )}
         </div>
       </div>
       <div className="mb-[20px] flex items-center justify-between gap-[12px] text-[10px] text-[#67725e] tablet:flex-col tablet:items-start mobile:text-[9px]">
         <span
-          className={`inline-flex items-center gap-[7px] rounded-[5px] border border-solid px-[9px] py-[5px] text-[10px] ${ready ? 'border-[#dce7cd] bg-[#edf3e7] text-[#5c7746] [&>span]:bg-[#86a570]' : 'border-[#e5dfcb] bg-[#f9f6ee] text-[#7f6d3f] [&>span]:bg-[#cbb778]'}`}
+          className={`inline-flex items-center gap-[7px] rounded-[5px] border border-solid px-[9px] py-[5px] text-[10px] ${hasCostData && !loading && !error ? 'border-[#dce7cd] bg-[#edf3e7] text-[#5c7746] [&>span]:bg-[#86a570]' : 'border-[#e5dfcb] bg-[#f9f6ee] text-[#7f6d3f] [&>span]:bg-[#cbb778]'}`}
         >
           <span className="inline-block h-[6px] w-[6px] shrink-0 rounded-[100%] bg-[#82a67f]" />
-          {loading
-            ? 'Loading Azure billing'
-            : ready
-              ? 'Azure-reported costs'
-              : error
-                ? 'Billing unavailable'
-                : report?.status === 'empty'
-                  ? 'Awaiting billing data'
-                  : 'Billing not connected'}
+          {statusText}
         </span>
         <span>
           {report ? `${report.start_date} — ${report.end_date} · UTC` : 'Complete UTC days only'}
@@ -117,13 +151,13 @@ export function CostPage({ samples }: { samples: Sample[] }) {
           className="mb-[14px] rounded-[7px] border border-solid border-[#f1d5c8] bg-[#fff1ec] px-[14px] py-[12px] text-[12px] leading-[1.7] text-[#915941]"
           role="alert"
         >
-          {error}
+          {error} {report && 'Showing the last loaded report for this period.'}
         </div>
       )}
       <div className="mb-[22px] grid grid-cols-[repeat(4,_minmax(0,_1fr))] gap-[16px] compact:gap-[10px] tablet:grid-cols-[1fr_1fr] mobile:gap-[10px]">
         <div
           data-testid="tracked-resource-spend"
-          className="rounded-[9px] border border-solid border-[#d8e3cc] bg-[#eaf0e3] p-[20px] compact:p-[16px] mobile:p-[15px] [&_strong]:mx-0 [&_strong]:mt-[13px] [&_strong]:mb-[7px] [&_strong]:block [&_strong]:text-[31px] [&_strong]:font-medium [&_strong]:tracking-[-1.1px] [&_strong]:tabular-nums mobile:[&_strong]:text-[27px] [&>span]:text-[9px] [&>span]:text-[#647451] compact:[&>span]:text-[8px] mobile:[&>span]:block mobile:[&>span]:text-[8px] mobile:[&>span]:leading-[1.7]"
+          className="card metric-card metric-card-highlight"
         >
           <div className="flex items-center gap-[7px] text-[11px] text-[#617550] mobile:text-[10px] [&>svg]:ml-auto">
             Tracked resource spend
@@ -133,10 +167,7 @@ export function CostPage({ samples }: { samples: Sample[] }) {
           <span>Actual pre-tax cost · selected resources</span>
         </div>
         {categories.slice(0, 3).map((category) => (
-          <div
-            className="rounded-[9px] border border-solid border-line bg-white p-[20px] compact:p-[16px] mobile:p-[15px] [&_strong]:mx-0 [&_strong]:mt-[13px] [&_strong]:mb-[7px] [&_strong]:block [&_strong]:text-[31px] [&_strong]:font-medium [&_strong]:tracking-[-1.1px] [&_strong]:tabular-nums mobile:[&_strong]:text-[27px] [&>span]:text-[9px] [&>span]:text-[#67735b] compact:[&>span]:text-[8px] mobile:[&>span]:block mobile:[&>span]:text-[8px] mobile:[&>span]:leading-[1.7]"
-            key={category.key}
-          >
+          <div className="card metric-card" key={category.key}>
             <div className="flex items-center gap-[7px] text-[11px] text-[#617550] mobile:text-[10px] [&>svg]:ml-auto">
               <span
                 className="h-[6px] w-[6px] rounded-[50%]"
@@ -145,7 +176,10 @@ export function CostPage({ samples }: { samples: Sample[] }) {
               {category.label}
             </div>
             <strong>
-              {money(ready ? report.totals[category.key] : undefined, report?.currency ?? null)}
+              {money(
+                hasCostData ? report.totals[category.key] : undefined,
+                report?.currency ?? null,
+              )}
             </strong>
             <span>
               {category.key === 'foundry'
@@ -157,8 +191,8 @@ export function CostPage({ samples }: { samples: Sample[] }) {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-[minmax(0,_1fr)_290px] gap-[22px] compact:grid-cols-[minmax(0,_1fr)_250px] compact:gap-[16px] tablet:grid-cols-[1fr]">
-        <section className="overflow-hidden rounded-[10px] border border-solid border-line bg-white">
+      <div className="grid grid-cols-[minmax(0,_1fr)_290px] items-start gap-[22px] compact:grid-cols-[minmax(0,_1fr)_250px] compact:gap-[16px] tablet:grid-cols-[1fr]">
+        <section className="card overflow-hidden" aria-busy={loading}>
           <div className="flex shrink-0 items-center justify-between gap-[12px] px-[21px] py-[18px] [border:0] compact:p-[16px] mobile:px-[13px] mobile:py-[16px] [&_p]:mt-[5px] [&_p]:text-[10px] [&_p]:text-[#68735b]">
             <div>
               <h3>Daily cost over time</h3>
@@ -168,7 +202,7 @@ export function CostPage({ samples }: { samples: Sample[] }) {
               {report?.currency ?? 'BILLING CURRENCY'}
             </span>
           </div>
-          {ready ? (
+          {hasCostData ? (
             <CostChart report={report} />
           ) : (
             <div
@@ -178,31 +212,15 @@ export function CostPage({ samples }: { samples: Sample[] }) {
               <div className="mb-[18px] grid h-[57px] w-[57px] place-items-center rounded-[12px] border border-solid border-[#e5ebdb] bg-[#f3f6ed] text-[#667356]">
                 <Icon name="chart" size={30} />
               </div>
-              <h3>
-                {loading
-                  ? 'Fetching your cost data…'
-                  : error
-                    ? 'Could not load Azure costs'
-                    : report?.status === 'empty'
-                      ? 'No reported charges yet'
-                      : 'Your costs will tell the story.'}
-              </h3>
-              <p>
-                {loading
-                  ? 'Reading Azure Cost Management.'
-                  : error
-                    ? 'Use refresh to try again. No estimated values are substituted.'
-                    : report?.status === 'empty'
-                      ? 'Azure has no billing rows for these resources and dates. That does not mean no usage occurred.'
-                      : 'Connect Azure Cost Management to see actual spend for your Container Apps and Foundry resource.'}
-              </p>
+              <h3>{emptyTitle}</h3>
+              <p>{emptyDescription}</p>
               <span className="text-[9px] text-[#69725e]">
                 Real billing data only. No sample numbers.
               </span>
             </div>
           )}
         </section>
-        <section className="overflow-hidden rounded-[10px] border border-solid border-line bg-white p-[23px] [&>p]:mt-[8px] [&>p]:text-[10px] [&>p]:leading-[1.8]">
+        <section className="card overflow-hidden p-[23px] [&>p]:mt-[8px] [&>p]:text-[10px] [&>p]:leading-[1.8]">
           <div className="mb-[8px] text-[8px] font-[650] tracking-[1.55px] text-[#76867b]">
             WHERE IT GOES
           </div>
@@ -221,7 +239,7 @@ export function CostPage({ samples }: { samples: Sample[] }) {
                   </span>
                   <strong>
                     {money(
-                      ready ? report.totals[category.key] : undefined,
+                      hasCostData ? report.totals[category.key] : undefined,
                       report?.currency ?? null,
                     )}
                   </strong>
@@ -229,14 +247,14 @@ export function CostPage({ samples }: { samples: Sample[] }) {
                 <div className="mt-[9px] h-[5px] overflow-hidden rounded-[3px] bg-[#f0f3eb] [&_span]:block [&_span]:h-full [&_span]:rounded-[3px]">
                   <span
                     style={{
-                      width: ready
-                        ? `${(Math.abs(report.totals[category.key] ?? 0) / max) * 100}%`
+                      width: hasCostData
+                        ? `${(Math.abs(report.totals[category.key] ?? 0) / largestCost) * 100}%`
                         : '0%',
                       background: category.color,
                     }}
                   />
                 </div>
-                {ready && report.totals[category.key] === undefined && (
+                {hasCostData && report.totals[category.key] === undefined && (
                   <small>Resource not connected</small>
                 )}
               </div>
@@ -251,25 +269,24 @@ export function CostPage({ samples }: { samples: Sample[] }) {
       <div className="mx-0 my-[21px] flex gap-[12px] rounded-[8px] border border-solid border-[#e1e8d6] bg-[#eef2e8] px-[20px] py-[17px] text-[#647451] [&_p]:text-[10px] [&_p]:leading-[1.85] mobile:[&_p]:text-[10px] [&_strong]:font-[550] [&_strong]:text-[#627551] [&_svg]:mt-[2px] [&_svg]:shrink-0">
         <Icon name="info" size={18} />
         <p>
-          <strong>Billing and performance answer different questions.</strong> Azure costs can
-          arrive hours later and may include other usage of a shared resource. Foundry charges are
-          not split by backend or model here. Token counts below describe this browser session, not
-          your Azure invoice.
+          <strong>Billing and performance answer different questions.</strong> Azure billing can lag
+          and include shared usage. Foundry costs are not split by backend or model. Session tokens
+          below are not invoice totals.
         </p>
       </div>
-      <section className="overflow-hidden rounded-[10px] border border-solid border-line bg-white">
+      <section className="card overflow-hidden">
         <div className="flex shrink-0 items-center justify-between gap-[12px] border-b [border-bottom-style:solid] border-b-[#edf0e9] px-[21px] py-[20px] compact:px-[16px] compact:py-[20px] mobile:flex-wrap mobile:items-start mobile:px-[13px] mobile:py-[20px] [&_p]:mt-[5px] [&_p]:text-[10px] [&_p]:text-[#68735b]">
           <div>
             <h3>
               {'Session comparison '}
               <span className="ml-[6px] rounded-[4px] bg-[#f0f4e9] px-[7px] py-[3px] align-middle text-[9px] font-normal text-[#64754d]">
-                {session.attempts} requests
+                {sessionStats.attempts} requests
               </span>
             </h3>
             <p>Measured end to end in this tab. Includes network time and backend startup.</p>
           </div>
           <button
-            className="inline-flex items-center justify-center gap-[8px] rounded-[6px] border border-solid border-[#dce2d8] bg-white px-[13px] py-[9px] text-[11px] font-medium whitespace-nowrap text-[#465a4c] [&:hover:not(:disabled)]:border-[#c2d0bf] [&:hover:not(:disabled)]:bg-[#eff4ed]"
+            className="secondary-button"
             disabled={!samples.length}
             onClick={() => exportMeasurements(samples)}
           >
@@ -278,7 +295,7 @@ export function CostPage({ samples }: { samples: Sample[] }) {
           </button>
         </div>
         <div className="overflow-auto">
-          <table className="w-full border-collapse text-left whitespace-nowrap [&_td]:border-b [&_td]:[border-bottom-style:solid] [&_td]:border-b-[#eff2e9] [&_td]:px-[20px] [&_td]:py-[16px] [&_td]:text-[11px] [&_td]:text-[#617553] [&_td]:tabular-nums [&_th]:border-b [&_th]:[border-bottom-style:solid] [&_th]:border-b-[#ecf0e4] [&_th]:bg-[#fafbf7] [&_th]:px-[20px] [&_th]:py-[13px] [&_th]:text-[9px] [&_th]:font-medium [&_th]:text-[#677357]">
+          <table className="data-table">
             <caption className="sr-only">Session measurements by infrastructure and model</caption>
             <thead>
               <tr>
@@ -292,14 +309,14 @@ export function CostPage({ samples }: { samples: Sample[] }) {
             </thead>
             <tbody>
               {(['autoscale', 'always-on'] as const).flatMap((backend) =>
-                (['gpt-4.1-nano', 'gpt-6-luna'] as const).map((model) => {
+                models.map((model) => {
                   const stats = summarize(
                     samples.filter(
-                      (sample) => sample.backend === backend && sample.model === model,
+                      (sample) => sample.backend === backend && sample.model === model.id,
                     ),
                   );
                   return (
-                    <tr key={`${backend}-${model}`}>
+                    <tr key={`${backend}-${model.id}`}>
                       <td>
                         <span
                           className={`inline-flex items-center gap-[6px] ${backend === 'always-on' ? 'text-[#55718f]' : 'text-[#557848]'}`}
@@ -308,15 +325,16 @@ export function CostPage({ samples }: { samples: Sample[] }) {
                           {backendLabels[backend]}
                         </span>
                       </td>
-                      <td>{modelLabels[model]}</td>
+                      <td>{model.label}</td>
                       <td>
-                        {stats.completed} <span className="text-muted">/ {stats.attempts}</span>
+                        {pairStats.completed}{' '}
+                        <span className="text-muted">/ {pairStats.attempts}</span>
                       </td>
-                      <td>{formatDuration(stats.averageMs)}</td>
-                      <td>{formatDuration(stats.p95Ms)}</td>
+                      <td>{formatDuration(pairStats.averageMs)}</td>
+                      <td>{formatDuration(pairStats.p95Ms)}</td>
                       <td>
-                        {formatNumber(stats.inputTokens)} <span className="text-muted">/</span>{' '}
-                        {formatNumber(stats.outputTokens)}
+                        {formatNumber(pairStats.inputTokens)} <span className="text-muted">/</span>{' '}
+                        {formatNumber(pairStats.outputTokens)}
                       </td>
                     </tr>
                   );
@@ -332,14 +350,14 @@ export function CostPage({ samples }: { samples: Sample[] }) {
           No background requests are sent to keep the autoscale backend awake.
         </div>
       </section>
-      {ready && (
+      {hasCostData && (
         <details className="mt-[18px] overflow-hidden rounded-[10px] border border-solid border-line bg-white [&_summary]:cursor-pointer [&_summary]:px-[20px] [&_summary]:py-[17px] [&_summary]:text-[12px] [&_summary_span]:ml-[10px] [&_summary_span]:text-[10px] mobile:[&_summary_span]:mx-0 mobile:[&_summary_span]:mt-[4px] mobile:[&_summary_span]:mb-0 mobile:[&_summary_span]:block">
           <summary>
             View daily billing data{' '}
             <span className="text-muted">Accessible table · {report.daily.length} days</span>
           </summary>
           <div className="overflow-auto">
-            <table className="w-full border-collapse text-left whitespace-nowrap [&_td]:border-b [&_td]:[border-bottom-style:solid] [&_td]:border-b-[#eff2e9] [&_td]:px-[20px] [&_td]:py-[16px] [&_td]:text-[11px] [&_td]:text-[#617553] [&_td]:tabular-nums [&_th]:border-b [&_th]:[border-bottom-style:solid] [&_th]:border-b-[#ecf0e4] [&_th]:bg-[#fafbf7] [&_th]:px-[20px] [&_th]:py-[13px] [&_th]:text-[9px] [&_th]:font-medium [&_th]:text-[#677357]">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Date (UTC)</th>
@@ -373,7 +391,8 @@ export function CostPage({ samples }: { samples: Sample[] }) {
         Source: Azure Cost Management · Foundry usage is billed through Azure.
         {report?.fetched_at &&
           ` Last fetched ${new Date(report.fetched_at).toLocaleString()}.`}{' '}
-        Billing responses are cached for 15 minutes.
+        Billing responses are normally cached for 24 hours. Older data may appear while Azure
+        throttles requests.
       </p>
     </>
   );

@@ -23,8 +23,20 @@ const config = {
     },
   ],
   models: [
-    { id: 'gpt-4.1-nano', label: 'GPT-4.1 Nano', enabled: true },
-    { id: 'gpt-6-luna', label: 'GPT-6 Luna', enabled: true },
+    {
+      id: 'gpt-4.1-nano',
+      label: 'GPT-4.1 Nano',
+      enabled: true,
+      input_usd_per_million: 0.5,
+      output_usd_per_million: 2,
+    },
+    {
+      id: 'gpt-6-luna',
+      label: 'GPT-6 Luna',
+      enabled: true,
+      input_usd_per_million: 1,
+      output_usd_per_million: 4,
+    },
   ],
 };
 const empty = {
@@ -43,6 +55,27 @@ async function setup(page: Page) {
   await page.route('**/api/config', (route) => route.fulfill({ json: config }));
   await page.route('**/api/costs?*', (route) => route.fulfill({ json: empty }));
 }
+
+test('requires Microsoft sign-in before showing the workspace when Entra is configured', async ({
+  page,
+}) => {
+  await page.route('**/api/config', (route) =>
+    route.fulfill({
+      json: {
+        ...config,
+        auth: {
+          tenant_id: '00000000-0000-0000-0000-000000000010',
+          client_id: '00000000-0000-0000-0000-000000000011',
+          scope: 'api://00000000-0000-0000-0000-000000000011/access_as_user',
+        },
+      },
+    }),
+  );
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Sign in to EcoCompute' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign in with Microsoft' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Message' })).toHaveCount(0);
+});
 
 test('routes model and backend independently, retains history and records measurements', async ({
   page,
@@ -69,7 +102,8 @@ test('routes model and backend independently, retains history and records measur
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Autoscale' }).click();
-  await page.getByRole('button', { name: 'GPT-6 Luna' }).click();
+  await page.getByRole('combobox', { name: 'AI model' }).selectOption('gpt-6-luna');
+  await expect(page.locator('#model-pricing')).toContainText('$0.005');
   await page.getByRole('textbox', { name: 'Message' }).fill('Hello');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Hello from the selected model.')).toBeVisible();
@@ -86,16 +120,62 @@ test('routes model and backend independently, retains history and records measur
   await expect(page.getByText('Hello from the selected model.')).toHaveCount(2);
 });
 
-test('shows disconnected billing without fabricated prices', async ({ page }) => {
+test('offers a newly configured model and its estimated token price', async ({ page }) => {
+  const extra = {
+    id: 'research-model',
+    label: 'Research model',
+    enabled: true,
+    input_usd_per_million: 0.5,
+    output_usd_per_million: 2,
+  };
   await setup(page);
-  await page.goto('/costs');
-  await expect(page.getByText('Billing not connected', { exact: true })).toBeVisible();
-  await expect(page.getByText('Real billing data only. No sample numbers.')).toBeVisible();
-  await expect(page.getByTestId('tracked-resource-spend').locator('strong')).toHaveText('—');
-  await page.screenshot({ path: '/tmp/ecocompute-costs-empty.png', fullPage: true });
+  await page.route('**/api/config', (route) =>
+    route.fulfill({ json: { ...config, models: [...config.models, extra] } }),
+  );
+  const requests: string[] = [];
+  await page.route('**/api/chat', (route) => {
+    requests.push(route.request().postDataJSON().model);
+    return route.fulfill({
+      json: {
+        reply: 'From the new deployment.',
+        backend: 'always-on',
+        model: 'research-model',
+        input_tokens: 20,
+        output_tokens: 10,
+        cached_tokens: 0,
+        duration_ms: 50,
+        request_id: 'research-request',
+        truncated: false,
+      },
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('combobox', { name: 'AI model' }).selectOption('research-model');
+  await expect(page.locator('#model-pricing')).toContainText('$0.0025');
+  await page.getByRole('textbox', { name: 'Message' }).fill('Hello');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText('From the new deployment.')).toBeVisible();
+  expect(requests).toEqual(['research-model']);
+  await page.getByRole('link', { name: 'Cost explorer' }).click();
+  await expect(page.getByRole('cell', { name: 'Research model' })).toHaveCount(2);
 });
 
-test('renders actual cost charts and accessible daily data', async ({ page }) => {
+test('shows disconnected billing without fabricated prices', async ({ page }) => {
+  await setup(page);
+  const billingRequests: string[] = [];
+  await page.route('**/api/costs?*', (route) => {
+    billingRequests.push(route.request().url());
+    return route.fulfill({ json: empty });
+  });
+  await page.goto('/costs');
+  await expect(page.getByText('Billing not connected', { exact: true })).toBeVisible();
+  expect(billingRequests).toEqual(['https://always-on.example.test/api/costs?days=30']);
+  await expect(page.getByText('Real billing data only. No sample numbers.')).toBeVisible();
+  await expect(page.getByTestId('tracked-resource-spend').locator('strong')).toHaveText('—');
+  await page.screenshot({ path: testInfo.outputPath('costs-empty.png'), fullPage: true });
+});
+
+test('renders actual cost charts and accessible daily data', async ({ page }, testInfo) => {
   await setup(page);
   await page.route('**/api/costs?*', (route) =>
     route.fulfill({
@@ -122,7 +202,10 @@ test('renders actual cost charts and accessible daily data', async ({ page }) =>
   await page.getByText('View daily billing data').click();
   await expect(page.getByRole('cell', { name: '2026-09-19', exact: true })).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({ path: '/tmp/ecocompute-costs-populated.png', fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('costs-populated.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: testInfo.outputPath('costs-mobile.png'), fullPage: true });
 });
 
 test('recovers a failed prompt and disables unconfigured models', async ({ page }) => {
@@ -136,26 +219,26 @@ test('recovers a failed prompt and disables unconfigured models', async ({ page 
     route.fulfill({ status: 429, json: { detail: 'Foundry is rate limited.' } }),
   );
   await page.goto('/');
-  await expect(page.getByRole('button', { name: /GPT-6 Luna/ })).toBeDisabled();
+  await expect(page.getByRole('option', { name: /GPT-6 Luna/ })).toBeDisabled();
   await page.getByRole('textbox', { name: 'Message' }).fill('Keep my draft');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByRole('alert')).toHaveText('Foundry is rate limited.');
   await expect(page.getByRole('textbox', { name: 'Message' })).toHaveValue('Keep my draft');
 });
 
-test('mobile layout fits the viewport', async ({ page }) => {
+test('mobile layout fits the viewport', async ({ page }, testInfo) => {
   await setup(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Let’s start a conversation.' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  await page.screenshot({ path: '/tmp/ecocompute-chat-mobile.png', fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('chat-mobile.png'), fullPage: true });
 });
 
-test('desktop playground visual check', async ({ page }) => {
+test('desktop playground visual check', async ({ page }, testInfo) => {
   await setup(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Let’s start a conversation.' })).toBeVisible();
-  await page.screenshot({ path: '/tmp/ecocompute-chat-desktop.png', fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('chat-desktop.png'), fullPage: true });
 });

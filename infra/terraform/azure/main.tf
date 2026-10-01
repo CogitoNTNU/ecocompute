@@ -128,18 +128,28 @@ resource "azurerm_container_app" "main" {
       }
 
       env {
-        name  = "AZURE_OPENAI_DEPLOYMENT"
-        value = var.azure_openai_nano_deployment
-      }
-
-      env {
-        name  = "AZURE_OPENAI_LUNA_DEPLOYMENT"
-        value = var.azure_openai_luna_deployment
+        name  = "AZURE_OPENAI_MODELS_JSON"
+        value = jsonencode(var.foundry_models)
       }
 
       env {
         name  = "BACKEND_MODE"
         value = each.key
+      }
+
+      env {
+        name  = "ENTRA_TENANT_ID"
+        value = var.entra_tenant_id
+      }
+
+      env {
+        name  = "ENTRA_CLIENT_ID"
+        value = var.entra_client_id
+      }
+
+      env {
+        name  = "ENTRA_ALLOWED_GROUP_ID"
+        value = var.entra_allowed_group_id
       }
 
       env {
@@ -178,15 +188,25 @@ resource "azurerm_container_app" "main" {
     external_enabled = true
     target_port      = 8000
 
-    ip_security_restriction {
-      name             = "test-client"
-      action           = "Allow"
-      ip_address_range = var.allowed_ip_cidr
+    dynamic "ip_security_restriction" {
+      for_each = var.public_ingress ? [] : [var.rollout_ip_cidr]
+      content {
+        name             = "test-client"
+        action           = "Allow"
+        ip_address_range = ip_security_restriction.value
+      }
     }
 
     traffic_weight {
       latest_revision = true
       percentage      = 100
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.public_ingress || var.rollout_ip_cidr != ""
+      error_message = "A temporary rollout IP range is required while public ingress is disabled."
     }
   }
 }

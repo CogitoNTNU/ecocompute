@@ -310,7 +310,7 @@ export function CostPage({
             <tbody>
               {(['autoscale', 'always-on'] as const).flatMap((backend) =>
                 models.map((model) => {
-                  const stats = summarize(
+                  const pairStats = summarize(
                     samples.filter(
                       (sample) => sample.backend === backend && sample.model === model.id,
                     ),

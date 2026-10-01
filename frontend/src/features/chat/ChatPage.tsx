@@ -30,7 +30,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
   const sessionStats = summarize(
     chat.samples.filter((sample) => sample.backend === chat.backend && sample.model === chat.model),
   );
-  const last = [...chat.messages].reverse().find((message) => message.result);
+  const lastReply = [...chat.messages].reverse().find((message) => message.result);
   const selectedModel = config.models.find((model) => model.id === chat.model);
   const modelLabel = (id: string) => config.models.find((model) => model.id === id)?.label ?? id;
   useEffect(() => {
@@ -214,7 +214,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                 <div className="w-full min-w-0">
                   <div className="flex min-h-[29px] items-center gap-[10px] text-[11px] font-semibold [&_span]:text-[9px] [&_span]:font-normal [&_span]:text-[#66735e]">
                     {message.role === 'assistant'
-                      ? modelLabels[message.result?.model ?? chat.model]
+                      ? modelLabel(message.result?.model ?? chat.model)
                       : 'You'}
                     {message.result && <span>{backendLabels[message.result.backend]}</span>}
                   </div>

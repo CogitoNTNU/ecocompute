@@ -160,7 +160,7 @@ test('offers a newly configured model and its estimated token price', async ({ p
   await expect(page.getByRole('cell', { name: 'Research model' })).toHaveCount(2);
 });
 
-test('shows disconnected billing without fabricated prices', async ({ page }) => {
+test('shows disconnected billing without fabricated prices', async ({ page }, testInfo) => {
   await setup(page);
   const billingRequests: string[] = [];
   await page.route('**/api/costs?*', (route) => {

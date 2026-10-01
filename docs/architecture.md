@@ -6,7 +6,7 @@
 flowchart LR
     UI[React UI on always-on] -->|selected URL| A[Autoscale API: 0–3 replicas]
     UI -->|selected URL| B[Always-on API: 1 replica]
-    A -->|selected deployment| F[Microsoft Foundry: Nano or Luna]
+    A -->|selected deployment| F[Microsoft Foundry: configured models]
     B -->|selected deployment| F
     UI -->|billing page only| C[Host API: cost service]
     C -->|managed identity| M[Azure Cost Management]
@@ -32,7 +32,7 @@ There is no global framework or repository layer for data that is not persisted.
 
 ## Chat and credentials
 
-Only the two configured model IDs and known backend IDs are accepted. Foundry
+Only model IDs from the validated server-side catalog and known backend IDs are accepted. Foundry
 deployment names, endpoints and keys stay server-side. Backend identity is checked
 before inference, so a wrong URL cannot silently invalidate a comparison. The
 server rejects extra input fields, system-role messages, oversized requests and
@@ -73,6 +73,11 @@ charges or resources without matching IDs are not included in the tracked total.
 Foundry account totals are not attributed to individual models or backends.
 Accurate per-model attribution would require deployment/meter-level billing
 records and a verified mapping; token ratios are not used to invent a split.
+The chat selector can show a separate USD estimate based on manually configured
+input and output rates per million tokens. Its 1,000-input/1,000-output example
+is for comparing model prices; actual requests can use different token counts,
+cached-token discounts or other meters. This estimate is never added to the
+Azure-reported billing chart.
 
 Session token/latency measurements cover only requests in the current tab.
 They do not represent total cloud traffic, replica count, cold-start duration,

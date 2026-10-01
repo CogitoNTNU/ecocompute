@@ -26,8 +26,8 @@ class FoundryChatService:
             raise ServiceError(
                 409, "This URL serves a different backend. Check the backend URL configuration."
             )
-        deployment = next(model for model in self.settings.models if model.id == request.model)
-        if not deployment.enabled or request.model not in self.clients:
+        deployment = next((model for model in self.settings.models if model.id == request.model), None)
+        if deployment is None or not deployment.enabled or request.model not in self.clients:
             raise ServiceError(503, "This model has not been configured in Microsoft Foundry.")
         request_id = str(uuid4())
         started = perf_counter()

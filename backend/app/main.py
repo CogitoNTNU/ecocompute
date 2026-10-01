@@ -29,9 +29,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         async with AsyncExitStack() as stack:
             clients = {}
+            client_pool: dict[tuple[str, str], AsyncOpenAI] = {}
             for model in settings.models:
-                if model.enabled:
-                    clients[model.id] = await stack.enter_async_context(
+                if not model.enabled:
+                    continue
+                connection = (model.base_url, model.api_key)
+                if connection not in client_pool:
+                    client_pool[connection] = await stack.enter_async_context(
                         AsyncOpenAI(
                             base_url=model.base_url,
                             api_key=model.api_key,
@@ -39,6 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                             max_retries=0,
                         )
                     )
+                clients[model.id] = client_pool[connection]
             app.state.chat_service = FoundryChatService(settings, clients)
             app.state.cost_service = UnconfiguredCostService()
             if settings.cost_subscription_id and any(settings.cost_resources.values()):

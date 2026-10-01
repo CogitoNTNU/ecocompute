@@ -39,7 +39,18 @@ async def public_config(request: Request) -> dict:
             ]
         ],
         "models": [
-            {"id": model.id, "label": model.label, "enabled": model.enabled} for model in settings.models
+            {
+                "id": model.id,
+                "label": model.label,
+                "enabled": model.enabled,
+                "input_usd_per_million": (
+                    float(model.input_usd_per_million) if model.input_usd_per_million is not None else None
+                ),
+                "output_usd_per_million": (
+                    float(model.output_usd_per_million) if model.output_usd_per_million is not None else None
+                ),
+            }
+            for model in settings.models
         ],
         "billing_configured": bool(settings.cost_subscription_id and any(settings.cost_resources.values())),
         "auth": (

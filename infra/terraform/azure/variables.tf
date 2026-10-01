@@ -67,14 +67,30 @@ variable "azure_openai_base_url" {
   default     = "https://ecollm.openai.azure.com/openai/v1/"
 }
 
-variable "azure_openai_nano_deployment" {
-  type    = string
-  default = "gpt-4.1-nano"
-}
+variable "foundry_models" {
+  description = "Selectable Foundry deployments. Optional USD rates per million tokens are manually verified estimates, not billed costs."
+  type = list(object({
+    id                     = string
+    label                  = string
+    deployment             = string
+    input_usd_per_million  = optional(number)
+    output_usd_per_million = optional(number)
+  }))
+  default = []
 
-variable "azure_openai_luna_deployment" {
-  type    = string
-  default = "gpt-6-luna"
+  validation {
+    condition = length(var.foundry_models) <= 100 && length(distinct([
+      for model in var.foundry_models : model.id
+      ])) == length(var.foundry_models) && alltrue([
+      for model in var.foundry_models :
+      can(regex("^[a-z0-9][a-z0-9._-]{0,63}$", model.id)) &&
+      length(trimspace(model.label)) > 0 && length(trimspace(model.deployment)) > 0 &&
+      (model.input_usd_per_million == null) == (model.output_usd_per_million == null) &&
+      (model.input_usd_per_million == null || model.input_usd_per_million >= 0) &&
+      (model.output_usd_per_million == null || model.output_usd_per_million >= 0)
+    ])
+    error_message = "Use unique lowercase model IDs, names and deployments; provide both nonnegative USD rates or neither."
+  }
 }
 
 variable "enable_cost_reporting" {

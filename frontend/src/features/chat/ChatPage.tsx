@@ -4,11 +4,23 @@ import { backendLabels, modelLabels } from '../../lib/contracts';
 import { formatDuration, formatNumber, summarize } from '../../lib/measurements';
 import { Icon } from '../../components/Icon';
 import type { ChatController } from './useChat';
+import Markdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 const prompts = [
   'Explain serverless computing in simple terms.',
   'When is an always-on backend more efficient?',
 ];
+
+function normalizeMathDelimiters(content: string) {
+  return content
+    .replace(/\\\[/g, '\n$$$\n')
+    .replace(/\\\]/g, '\n$$$\n')
+    .replace(/\\\(/g, '$')
+    .replace(/\\\)/g, '$');
+}
 
 export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatController }) {
   const bottom = useRef<HTMLDivElement>(null);
@@ -176,14 +188,14 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                 </div>
                 <div className="w-full min-w-0">
                   <div className="flex min-h-[29px] items-center gap-[10px] text-[11px] font-semibold [&_span]:text-[9px] [&_span]:font-normal [&_span]:text-[#66735e]">
-                    {message.role === 'assistant' ? modelLabels[message.result!.model] : 'You'}
+                    {message.role === 'assistant'
+                      ? modelLabels[message.result?.model ?? chat.model]
+                      : 'You'}
                     {message.result && <span>{backendLabels[message.result.backend]}</span>}
                   </div>
-                  <div
-                    className={`mt-[6px] text-[13px] leading-[1.9] [overflow-wrap:anywhere] whitespace-pre-wrap text-[#435640] ${message.role === 'user' ? 'rounded-[2px_10px_10px_10px] bg-[#f5f7f1] px-[15px] py-[12px]' : ''}`}
-                  >
-                    {message.content}
-                  </div>
+                  <Markdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                    {normalizeMathDelimiters(message.content)}
+                  </Markdown>
                   {message.result && (
                     <div className="mt-[12px] flex flex-wrap gap-[12px] text-[9px] text-[#68725d] [&>span]:flex [&>span]:items-center [&>span]:gap-[4px]">
                       <span>

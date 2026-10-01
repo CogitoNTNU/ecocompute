@@ -26,8 +26,17 @@ it also needs permission to create role assignments at subscription scope.
 Configure the identity and state storage separately from this application stack.
 
 The Foundry account and deployments already exist and are not created by this
-Terraform configuration. Defaults are `gpt-4.1-nano` and `gpt-6-luna` on
-`https://ecollm.openai.azure.com/openai/v1/`.
+Terraform configuration. `foundry_models` in `terraform.tfvars` lists the
+selectable deployments, initially Nano and Luna, on
+`https://ecollm.openai.azure.com/openai/v1/`. To add a model, deploy it in this
+Foundry resource, then add its `id`, display `label`, and actual `deployment`
+name to that list. Only add deployments that support the Responses API used by
+the backend. Optionally add both `input_usd_per_million` and
+`output_usd_per_million` after checking the current rates for your deployment
+type and region. Microsoft's [Azure OpenAI pricing FAQ](https://learn.microsoft.com/en-us/azure/ai-services/openai/faq)
+describes how to look up model meters through the Retail Prices API. These USD
+rates are manual estimates; leave them unset if unknown. Terraform sends the
+same catalog to both Container Apps.
 
 ## Deployment
 

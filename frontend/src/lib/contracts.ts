@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const backendId = z.enum(['autoscale', 'always-on']);
-export const modelId = z.enum(['gpt-4.1-nano', 'gpt-6-luna']);
+export const modelId = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,63}$/);
 const guid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 const origin = z.string().refine((value) => {
   if (value === '') return true;
@@ -32,7 +32,15 @@ export const configSchema = z.object({
       max_replicas: z.number(),
     }),
   ),
-  models: z.array(z.object({ id: modelId, label: z.string(), enabled: z.boolean() })),
+  models: z.array(
+    z.object({
+      id: modelId,
+      label: z.string(),
+      enabled: z.boolean(),
+      input_usd_per_million: z.number().nonnegative().nullable(),
+      output_usd_per_million: z.number().nonnegative().nullable(),
+    }),
+  ),
   billing_configured: z.boolean(),
   auth: z.object({ tenant_id: guid, client_id: guid, scope: z.string() }).nullable().optional(),
 });
@@ -90,8 +98,4 @@ export type Sample = {
 export const backendLabels: Record<BackendId, string> = {
   autoscale: 'Autoscale',
   'always-on': 'Always-on',
-};
-export const modelLabels: Record<ModelId, string> = {
-  'gpt-4.1-nano': 'GPT-4.1 Nano',
-  'gpt-6-luna': 'GPT-6 Luna',
 };

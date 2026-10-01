@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import type { AppConfig } from '../../lib/contracts';
-import { backendLabels, modelLabels } from '../../lib/contracts';
+import { backendLabels } from '../../lib/contracts';
 import { formatDuration, formatNumber, summarize } from '../../lib/measurements';
+import { estimatedModelCost, formatEstimatedUsd } from '../../lib/modelPricing';
 import { Icon } from '../../components/Icon';
 import type { ChatController } from './useChat';
 
@@ -17,7 +18,9 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
   const sessionStats = summarize(
     chat.samples.filter((sample) => sample.backend === chat.backend && sample.model === chat.model),
   );
-  const lastReply = [...chat.messages].reverse().find((message) => message.result);
+  const last = [...chat.messages].reverse().find((message) => message.result);
+  const selectedModel = config.models.find((model) => model.id === chat.model);
+  const modelLabel = (id: string) => config.models.find((model) => model.id === id)?.label ?? id;
   useEffect(() => {
     if (conversation.current && stayAtBottom.current) {
       conversation.current.scrollTop = conversation.current.scrollHeight;
@@ -88,25 +91,38 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
             02{' '}
             <span className="ml-[7px] text-[10px] tracking-[0.2px] text-[#687a6e]">AI model</span>
           </legend>
-          <div className="choice-group">
+          <select
+            aria-label="AI model"
+            aria-describedby="model-pricing"
+            className="w-[240px] max-w-full min-w-0 rounded-[8px] border border-solid border-[#dbe3d6] bg-white px-[12px] py-[9px] text-[11px] text-[#315f46] mobile:w-full"
+            value={chat.model}
+            onChange={(event) => chat.setModel(event.target.value)}
+          >
+            {config.models.length === 0 && <option value="">No models configured</option>}
             {config.models.map((model) => (
-              <button
-                key={model.id}
-                aria-pressed={chat.model === model.id}
-                disabled={!model.enabled}
-                title={!model.enabled ? 'Model deployment is not configured' : undefined}
-                className="choice"
-                onClick={() => chat.setModel(model.id)}
-              >
-                <span
-                  className={`grid h-[16px] w-[16px] place-items-center rounded-[4px] text-[9px] font-[650] ${model.id === 'gpt-6-luna' ? 'bg-[#eeebf2] text-[#78688f]' : 'bg-[#e7efe8] text-[#4c7765]'}`}
-                >
-                  {model.id === 'gpt-6-luna' ? 'L' : 'N'}
-                </span>
+              <option key={model.id} value={model.id} disabled={!model.enabled}>
                 {model.label}
-                {!model.enabled && <span className="text-[10px] text-[#89928d]">Unavailable</span>}
-              </button>
+                {!model.enabled ? ' · Unavailable' : ''}
+              </option>
             ))}
+          </select>
+          <div
+            id="model-pricing"
+            className="mt-[7px] max-w-[350px] text-[9px] leading-[1.6] text-[#697166]"
+          >
+            {selectedModel &&
+            selectedModel.input_usd_per_million !== null &&
+            selectedModel.output_usd_per_million !== null ? (
+              <>
+                Est. {formatEstimatedUsd(estimatedModelCost(selectedModel, 1000, 1000) ?? 0)} for 1K
+                input + 1K output tokens · {formatEstimatedUsd(selectedModel.input_usd_per_million)}
+                /1M input · {formatEstimatedUsd(selectedModel.output_usd_per_million)}/1M output.
+                <br />
+                Rates configured manually; actual Azure billing may differ.
+              </>
+            ) : (
+              'Usage estimate unavailable until token rates are configured.'
+            )}
           </div>
         </fieldset>
       </div>
@@ -128,7 +144,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                 className={`inline-block h-[6px] w-[6px] shrink-0 rounded-[100%] ${chat.backend === 'always-on' ? 'bg-[#7598b7]' : 'bg-[#82a67f]'}`}
               />
               {backendLabels[chat.backend]} <span className="text-muted">/</span>{' '}
-              {modelLabels[chat.model]}
+              {modelLabel(chat.model)}
             </span>
             <span className="text-[9px] tracking-[1.25px] whitespace-nowrap text-[#687169] mobile:tracking-[0.7px]">
               MICROSOFT FOUNDRY
@@ -185,7 +201,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                 </div>
                 <div className="w-full min-w-0">
                   <div className="flex min-h-[29px] items-center gap-[10px] text-[11px] font-semibold [&_span]:text-[9px] [&_span]:font-normal [&_span]:text-[#66735e]">
-                    {message.result ? modelLabels[message.result.model] : 'You'}
+                    {message.role === 'assistant' ? modelLabel(message.result!.model) : 'You'}
                     {message.result && <span>{backendLabels[message.result.backend]}</span>}
                   </div>
                   <div
@@ -221,7 +237,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                   <span />
                   <span />
                   <span className="ml-[8px] text-[10px] text-[#677358]">
-                    Waiting for {modelLabels[chat.model]}…
+                    Waiting for {modelLabel(chat.model)}…
                   </span>
                 </div>
               </div>
@@ -268,7 +284,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                   <Icon name="globe" size={14} />
                   {backendLabels[chat.backend]}
                   <span className="text-muted">·</span>
-                  {modelLabels[chat.model]}
+                  {modelLabel(chat.model)}
                 </span>
                 {chat.pending ? (
                   <button
@@ -333,7 +349,7 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
                   <Icon name="globe" size={18} />
                 </span>
                 <div>
-                  <strong>{modelLabels[chat.model]}</strong>
+                  <strong>{modelLabel(chat.model)}</strong>
                   <small>Microsoft Foundry</small>
                 </div>
               </div>

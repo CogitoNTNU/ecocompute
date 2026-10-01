@@ -128,13 +128,8 @@ resource "azurerm_container_app" "main" {
       }
 
       env {
-        name  = "AZURE_OPENAI_DEPLOYMENT"
-        value = var.azure_openai_nano_deployment
-      }
-
-      env {
-        name  = "AZURE_OPENAI_LUNA_DEPLOYMENT"
-        value = var.azure_openai_luna_deployment
+        name  = "AZURE_OPENAI_MODELS_JSON"
+        value = jsonencode(var.foundry_models)
       }
 
       env {

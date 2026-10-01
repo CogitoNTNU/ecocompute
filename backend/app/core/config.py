@@ -2,7 +2,9 @@
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -12,6 +14,7 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 BACKENDS = ("autoscale", "always-on")
 COST_CATEGORIES = (*BACKENDS, "foundry", "shared")
+MODEL_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 
 
 def validate_origin(value: str) -> str:
@@ -31,10 +34,65 @@ class ModelDeployment:
     deployment: str
     base_url: str
     api_key: str = field(repr=False)
+    input_usd_per_million: Decimal | None = None
+    output_usd_per_million: Decimal | None = None
 
     @property
     def enabled(self) -> bool:
         return bool(self.deployment and self.base_url and self.api_key)
+
+
+def model_price(value: object) -> Decimal | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise ValueError("Model prices must be nonnegative USD amounts per million tokens.")
+    try:
+        price = Decimal(str(value))
+    except InvalidOperation as error:
+        raise ValueError("Model prices must be nonnegative USD amounts per million tokens.") from error
+    if not price.is_finite() or not 0 <= price <= 1_000_000:
+        raise ValueError("Model prices must be nonnegative USD amounts per million tokens.")
+    return price
+
+
+def configured_models(raw: str, endpoint: str, key: str) -> tuple[ModelDeployment, ...]:
+    try:
+        entries = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise ValueError("AZURE_OPENAI_MODELS_JSON must be a JSON array.") from error
+    if not isinstance(entries, list) or len(entries) > 100:
+        raise ValueError("AZURE_OPENAI_MODELS_JSON must be a JSON array of at most 100 models.")
+    models = []
+    seen: set[str] = set()
+    allowed = {"id", "label", "deployment", "input_usd_per_million", "output_usd_per_million"}
+    for entry in entries:
+        if not isinstance(entry, dict) or set(entry) - allowed:
+            raise ValueError("Each model must contain only supported configuration fields.")
+        model_id, label, deployment = (entry.get(name) for name in ("id", "label", "deployment"))
+        if not isinstance(model_id, str) or not MODEL_ID.fullmatch(model_id) or model_id in seen:
+            raise ValueError("Model IDs must be unique lowercase identifiers of at most 64 characters.")
+        if not isinstance(label, str) or not 1 <= len(label.strip()) <= 80:
+            raise ValueError("Model labels must contain 1 to 80 characters.")
+        if not isinstance(deployment, str) or not 1 <= len(deployment.strip()) <= 128:
+            raise ValueError("Each model needs a Foundry deployment name.")
+        input_price = model_price(entry.get("input_usd_per_million"))
+        output_price = model_price(entry.get("output_usd_per_million"))
+        if (input_price is None) != (output_price is None):
+            raise ValueError("Configure both input and output prices, or neither.")
+        seen.add(model_id)
+        models.append(
+            ModelDeployment(
+                model_id,
+                label.strip(),
+                deployment.strip(),
+                endpoint,
+                key,
+                input_price,
+                output_price,
+            )
+        )
+    return tuple(models)
 
 
 @dataclass(frozen=True)
@@ -80,22 +138,7 @@ class Settings:
         )
         endpoint = os.getenv("AZURE_OPENAI_BASE_URL", "").strip()
         key = os.getenv("AZURE_OPENAI_API_KEY", "").strip()
-        models = (
-            ModelDeployment(
-                "gpt-4.1-nano",
-                "GPT-4.1 Nano",
-                os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-nano").strip(),
-                endpoint,
-                key,
-            ),
-            ModelDeployment(
-                "gpt-6-luna",
-                "GPT-6 Luna",
-                os.getenv("AZURE_OPENAI_LUNA_DEPLOYMENT", "").strip(),
-                os.getenv("AZURE_OPENAI_LUNA_BASE_URL", "").strip() or endpoint,
-                os.getenv("AZURE_OPENAI_LUNA_API_KEY", "").strip() or key,
-            ),
-        )
+        models = configured_models(os.getenv("AZURE_OPENAI_MODELS_JSON", "[]"), endpoint, key)
         for model in models:
             if model.base_url:
                 parsed = urlsplit(model.base_url)

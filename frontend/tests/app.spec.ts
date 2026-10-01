@@ -23,8 +23,20 @@ const config = {
     },
   ],
   models: [
-    { id: 'gpt-4.1-nano', label: 'GPT-4.1 Nano', enabled: true },
-    { id: 'gpt-6-luna', label: 'GPT-6 Luna', enabled: true },
+    {
+      id: 'gpt-4.1-nano',
+      label: 'GPT-4.1 Nano',
+      enabled: true,
+      input_usd_per_million: 0.5,
+      output_usd_per_million: 2,
+    },
+    {
+      id: 'gpt-6-luna',
+      label: 'GPT-6 Luna',
+      enabled: true,
+      input_usd_per_million: 1,
+      output_usd_per_million: 4,
+    },
   ],
 };
 const empty = {
@@ -90,7 +102,8 @@ test('routes model and backend independently, retains history and records measur
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Autoscale' }).click();
-  await page.getByRole('button', { name: 'GPT-6 Luna' }).click();
+  await page.getByRole('combobox', { name: 'AI model' }).selectOption('gpt-6-luna');
+  await expect(page.locator('#model-pricing')).toContainText('$0.005');
   await page.getByRole('textbox', { name: 'Message' }).fill('Hello');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Hello from the selected model.')).toBeVisible();
@@ -107,33 +120,47 @@ test('routes model and backend independently, retains history and records measur
   await expect(page.getByText('Hello from the selected model.')).toHaveCount(2);
 });
 
-test('a new reply keeps the document in place', async ({ page }) => {
+test('offers a newly configured model and its estimated token price', async ({ page }) => {
+  const extra = {
+    id: 'research-model',
+    label: 'Research model',
+    enabled: true,
+    input_usd_per_million: 0.5,
+    output_usd_per_million: 2,
+  };
   await setup(page);
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.route('**/api/config', (route) =>
+    route.fulfill({ json: { ...config, models: [...config.models, extra] } }),
+  );
+  const requests: string[] = [];
   await page.route('**/api/chat', (route) => {
-    const body = route.request().postDataJSON();
+    requests.push(route.request().postDataJSON().model);
     return route.fulfill({
       json: {
-        reply: 'A short answer.',
-        backend: body.backend,
-        model: body.model,
-        input_tokens: 4,
-        output_tokens: 4,
+        reply: 'From the new deployment.',
+        backend: 'always-on',
+        model: 'research-model',
+        input_tokens: 20,
+        output_tokens: 10,
         cached_tokens: 0,
-        duration_ms: 20,
-        request_id: 'scroll-check',
+        duration_ms: 50,
+        request_id: 'research-request',
         truncated: false,
       },
     });
   });
   await page.goto('/');
+  await page.getByRole('combobox', { name: 'AI model' }).selectOption('research-model');
+  await expect(page.locator('#model-pricing')).toContainText('$0.0025');
   await page.getByRole('textbox', { name: 'Message' }).fill('Hello');
   await page.getByRole('button', { name: 'Send message' }).click();
-  await expect(page.getByText('A short answer.')).toBeVisible();
-  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(page.getByText('From the new deployment.')).toBeVisible();
+  expect(requests).toEqual(['research-model']);
+  await page.getByRole('link', { name: 'Cost explorer' }).click();
+  await expect(page.getByRole('cell', { name: 'Research model' })).toHaveCount(2);
 });
 
-test('shows disconnected billing without fabricated prices', async ({ page }, testInfo) => {
+test('shows disconnected billing without fabricated prices', async ({ page }) => {
   await setup(page);
   const billingRequests: string[] = [];
   await page.route('**/api/costs?*', (route) => {
@@ -192,7 +219,7 @@ test('recovers a failed prompt and disables unconfigured models', async ({ page 
     route.fulfill({ status: 429, json: { detail: 'Foundry is rate limited.' } }),
   );
   await page.goto('/');
-  await expect(page.getByRole('button', { name: /GPT-6 Luna/ })).toBeDisabled();
+  await expect(page.getByRole('option', { name: /GPT-6 Luna/ })).toBeDisabled();
   await page.getByRole('textbox', { name: 'Message' }).fill('Keep my draft');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByRole('alert')).toHaveText('Foundry is rate limited.');

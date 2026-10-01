@@ -2,7 +2,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-ModelId = Literal["gpt-4.1-nano", "gpt-6-luna"]
 BackendId = Literal["autoscale", "always-on"]
 
 
@@ -14,7 +13,7 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    model: ModelId
+    model: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]{0,63}$")
     backend: BackendId
     messages: list[Message] = Field(min_length=1, max_length=21)
 
@@ -34,7 +33,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
-    model: ModelId
+    model: str
     backend: BackendId
     input_tokens: int | None
     output_tokens: int | None

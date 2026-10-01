@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '../../components/Icon';
 import { api } from '../../lib/api';
-import type { CostReport, Sample } from '../../lib/contracts';
-import { backendLabels, modelLabels } from '../../lib/contracts';
+import type { AppConfig, CostReport, Sample } from '../../lib/contracts';
+import { backendLabels } from '../../lib/contracts';
 import { formatDuration, formatNumber, money, summarize } from '../../lib/measurements';
 import { categories, CostChart } from './CostChart';
 
@@ -29,7 +29,15 @@ function exportMeasurements(samples: Sample[]) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function CostPage({ samples, billingUrl }: { samples: Sample[]; billingUrl: string }) {
+export function CostPage({
+  samples,
+  models,
+  billingUrl,
+}: {
+  samples: Sample[];
+  models: AppConfig['models'];
+  billingUrl: string;
+}) {
   const [days, setDays] = useState<7 | 30 | 90>(30);
   const [loadedReport, setLoadedReport] = useState<{
     days: number;
@@ -301,14 +309,14 @@ export function CostPage({ samples, billingUrl }: { samples: Sample[]; billingUr
             </thead>
             <tbody>
               {(['autoscale', 'always-on'] as const).flatMap((backend) =>
-                (['gpt-4.1-nano', 'gpt-6-luna'] as const).map((model) => {
-                  const pairStats = summarize(
+                models.map((model) => {
+                  const stats = summarize(
                     samples.filter(
-                      (sample) => sample.backend === backend && sample.model === model,
+                      (sample) => sample.backend === backend && sample.model === model.id,
                     ),
                   );
                   return (
-                    <tr key={`${backend}-${model}`}>
+                    <tr key={`${backend}-${model.id}`}>
                       <td>
                         <span
                           className={`inline-flex items-center gap-[6px] ${backend === 'always-on' ? 'text-[#55718f]' : 'text-[#557848]'}`}
@@ -317,7 +325,7 @@ export function CostPage({ samples, billingUrl }: { samples: Sample[]; billingUr
                           {backendLabels[backend]}
                         </span>
                       </td>
-                      <td>{modelLabels[model]}</td>
+                      <td>{model.label}</td>
                       <td>
                         {pairStats.completed}{' '}
                         <span className="text-muted">/ {pairStats.attempts}</span>

@@ -6,7 +6,7 @@ import { conversationWindow } from '../../lib/measurements';
 export function useChat(config: AppConfig) {
   const [backend, setBackend] = useState<BackendId>(config.backend_mode);
   const [model, setModel] = useState<ModelId>(
-    config.models.find((item) => item.enabled)?.id ?? 'gpt-4.1-nano',
+    config.models.find((item) => item.enabled)?.id ?? config.models[0]?.id ?? '',
   );
   const [messages, setMessages] = useState<Message[]>([]);
   const [samples, setSamples] = useState<Sample[]>([]);

@@ -1,4 +1,5 @@
 from dataclasses import replace
+from decimal import Decimal
 
 from fastapi.testclient import TestClient
 
@@ -6,12 +7,24 @@ from app.main import create_app
 
 
 def test_public_config_excludes_secrets(settings):
+    settings = replace(
+        settings,
+        models=(
+            replace(
+                settings.models[0], input_usd_per_million=Decimal("0.5"), output_usd_per_million=Decimal("2")
+            ),
+            *settings.models[1:],
+        ),
+    )
     with TestClient(create_app(settings)) as client:
         response = client.get("/api/config")
         assert response.status_code == 200
         assert "secret-key" not in response.text
         assert "foundry.example" not in response.text
         assert response.json()["models"][1]["enabled"] is True
+        assert response.json()["models"][0]["input_usd_per_million"] == 0.5
+        assert response.json()["models"][0]["output_usd_per_million"] == 2
+        assert "nano-deployment" not in response.text
         assert response.headers["cache-control"] == "no-store"
         assert client.get("/health").json()["backend"] == "always-on"
 

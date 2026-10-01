@@ -115,6 +115,7 @@ function Workspace({ config, username }: { config: AppConfig; username: string |
           ) : (
             <CostPage
               samples={chat.samples}
+              models={config.models}
               billingUrl={config.backends.find((backend) => backend.id === 'always-on')?.url ?? ''}
             />
           )}

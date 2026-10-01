@@ -28,8 +28,8 @@ docs/                       Architecture and deployment guides
 .github/workflows/           Validation and deployment
 ```
 
-The frontend uses Tailwind CSS through its Vite plugin. Edit utility classes in
-the React components to change their styling; shared colors, animation and
+The frontend uses Tailwind CSS through its Vite plugin. Layout details live in
+the React components; repeated controls, card styles, shared colors and
 document defaults live in `frontend/src/styles.css`. The `wide`, `compact`,
 `tablet` and `mobile` variants retain the existing 1600px, 1200px, 1000px and
 700px breakpoints. Exact pixel values and the existing base styles preserve the

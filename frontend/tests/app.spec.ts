@@ -107,7 +107,33 @@ test('routes model and backend independently, retains history and records measur
   await expect(page.getByText('Hello from the selected model.')).toHaveCount(2);
 });
 
-test('shows disconnected billing without fabricated prices', async ({ page }) => {
+test('a new reply keeps the document in place', async ({ page }) => {
+  await setup(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.route('**/api/chat', (route) => {
+    const body = route.request().postDataJSON();
+    return route.fulfill({
+      json: {
+        reply: 'A short answer.',
+        backend: body.backend,
+        model: body.model,
+        input_tokens: 4,
+        output_tokens: 4,
+        cached_tokens: 0,
+        duration_ms: 20,
+        request_id: 'scroll-check',
+        truncated: false,
+      },
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'Message' }).fill('Hello');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText('A short answer.')).toBeVisible();
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test('shows disconnected billing without fabricated prices', async ({ page }, testInfo) => {
   await setup(page);
   const billingRequests: string[] = [];
   await page.route('**/api/costs?*', (route) => {
@@ -119,10 +145,10 @@ test('shows disconnected billing without fabricated prices', async ({ page }) =>
   expect(billingRequests).toEqual(['https://always-on.example.test/api/costs?days=30']);
   await expect(page.getByText('Real billing data only. No sample numbers.')).toBeVisible();
   await expect(page.getByTestId('tracked-resource-spend').locator('strong')).toHaveText('—');
-  await page.screenshot({ path: '/tmp/ecocompute-costs-empty.png', fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('costs-empty.png'), fullPage: true });
 });
 
-test('renders actual cost charts and accessible daily data', async ({ page }) => {
+test('renders actual cost charts and accessible daily data', async ({ page }, testInfo) => {
   await setup(page);
   await page.route('**/api/costs?*', (route) =>
     route.fulfill({
@@ -149,7 +175,10 @@ test('renders actual cost charts and accessible daily data', async ({ page }) =>
   await page.getByText('View daily billing data').click();
   await expect(page.getByRole('cell', { name: '2026-09-19', exact: true })).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({ path: '/tmp/ecocompute-costs-populated.png', fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('costs-populated.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: testInfo.outputPath('costs-mobile.png'), fullPage: true });
 });
 
 test('recovers a failed prompt and disables unconfigured models', async ({ page }) => {
@@ -170,19 +199,19 @@ test('recovers a failed prompt and disables unconfigured models', async ({ page 
   await expect(page.getByRole('textbox', { name: 'Message' })).toHaveValue('Keep my draft');
 });
 
-test('mobile layout fits the viewport', async ({ page }) => {
+test('mobile layout fits the viewport', async ({ page }, testInfo) => {
   await setup(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Let’s start a conversation.' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  await page.screenshot({ path: '/tmp/ecocompute-chat-mobile.png', fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('chat-mobile.png'), fullPage: true });
 });
 
-test('desktop playground visual check', async ({ page }) => {
+test('desktop playground visual check', async ({ page }, testInfo) => {
   await setup(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Let’s start a conversation.' })).toBeVisible();
-  await page.screenshot({ path: '/tmp/ecocompute-chat-desktop.png', fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('chat-desktop.png'), fullPage: true });
 });

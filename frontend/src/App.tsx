@@ -89,7 +89,7 @@ function Workspace({ config, username }: { config: AppConfig; username: string |
         </div>
       </aside>
       <div className="ml-[235px] flex min-h-screen w-[calc(100%_-_235px)] flex-col compact:ml-[205px] compact:w-[calc(100%_-_205px)] tablet:ml-[185px] tablet:w-[calc(100%_-_185px)] mobile:m-0 mobile:w-full">
-        <header className="flex h-[73px] items-center justify-between border-b [border-bottom-style:solid] border-b-line bg-[#fafbf8] px-[38px] py-0 compact:px-[25px] compact:py-0 mobile:h-[48px] mobile:px-[18px] mobile:py-0">
+        {/* <header className="flex h-[73px] items-center justify-between border-b [border-bottom-style:solid] border-b-line bg-[#fafbf8] px-[38px] py-0 compact:px-[25px] compact:py-0 mobile:h-[48px] mobile:px-[18px] mobile:py-0">
           <div className="flex items-center gap-[15px] text-[11px] text-[#69716a] mobile:gap-[8px] mobile:text-[10px] [&_strong]:font-medium [&_strong]:text-[#47574e]">
             Workspace
             <Icon name="chevron" size={13} />
@@ -100,18 +100,18 @@ function Workspace({ config, username }: { config: AppConfig; username: string |
               {username} · Sign out
             </button>
           ) : (
-            <span className="flex items-center gap-[7px] rounded-[5px] border border-solid border-[#dce3d7] bg-[#f3f6ec] px-[9px] py-[5px] text-[10px] text-[#64745a] tablet:text-[9px] mobile:px-[7px] mobile:py-[3px] mobile:text-[8px]">
+            <span className="ml-auto flex items-center gap-[7px] rounded-[5px] border border-solid border-[#dce3d7] bg-[#f3f6ec] px-[9px] py-[5px] text-[10px] text-[#64745a] tablet:text-[9px] mobile:px-[7px] mobile:py-[3px] mobile:text-[8px]">
               <span className="inline-block h-[6px] w-[6px] shrink-0 rounded-[100%] bg-[#82a67f]" />
               Research environment
             </span>
           )}
-        </header>
+        </header> */}
         <main
           id="main"
           className="m-auto w-full max-w-[1580px] flex-1 px-[38px] pt-[34px] pb-[25px] wide:pt-[45px] compact:px-[25px] compact:pt-[28px] compact:pb-[24px] mobile:px-[18px] mobile:pt-[26px] mobile:pb-[20px]"
         >
           {page === 'chat' ? (
-            <ChatPage config={config} chat={chat} />
+            <ChatPage config={config} chat={chat} username={username} />
           ) : (
             <CostPage
               samples={chat.samples}

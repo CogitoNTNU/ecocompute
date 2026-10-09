@@ -9,7 +9,6 @@ import Markdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-import { signOut } from '../../lib/auth';
 
 const prompts = [
   'Explain serverless computing in simple terms.',
@@ -24,25 +23,7 @@ function normalizeMathDelimiters(content: string) {
     .replace(/\\\)/g, '$');
 }
 
-function userCharLimitCheck(username: string) {
-  if (username.length > 20) {
-    username = username.slice(0, 9);
-
-    username += '...';
-  }
-
-  return username;
-}
-
-export function ChatPage({
-  config,
-  chat,
-  username,
-}: {
-  config: AppConfig;
-  chat: ChatController;
-  username: string | null;
-}) {
+export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatController }) {
   const conversation = useRef<HTMLDivElement>(null);
   const stayAtBottom = useRef(true);
   const messageInput = useRef<HTMLTextAreaElement>(null);
@@ -78,27 +59,14 @@ export function ChatPage({
           <p>Talk to AI. Explore how your infrastructure changes the experience.</p>
         </div>
 
-        <div className="flex flex-col gap-4">
-          {username ? (
-            <button className="text-[11px] text-[#64745a] underline" onClick={() => void signOut()}>
-              {userCharLimitCheck(username)} · Sign out
-            </button>
-          ) : (
-            <span className="secondary-button">
-              <Icon name="user" />
-              Research environment
-            </span>
-          )}
-
-          <button
-            className="secondary-button w-full tablet:mt-[23px] mobile:mt-0"
-            onClick={chat.clear}
-            disabled={chat.pending}
-          >
-            <Icon name="plus" size={17} />
-            New chat
-          </button>
-        </div>
+        <button
+          className="secondary-button tablet:mt-[23px] mobile:mt-0"
+          onClick={chat.clear}
+          disabled={chat.pending}
+        >
+          <Icon name="plus" size={17} />
+          New chat
+        </button>
       </div>
       <div className="mb-[22px] flex flex-wrap items-center gap-[24px] compact:gap-[15px] mobile:mb-[18px] mobile:gap-[13px]">
         <fieldset className="m-0 min-w-0 p-0 [border:0] mobile:w-full" disabled={chat.pending}>

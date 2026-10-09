@@ -12,6 +12,18 @@ type Page = 'chat' | 'costs';
 
 const pageFromPath = (): Page => (location.pathname === '/costs' ? 'costs' : 'chat');
 
+function userCharLimitCheck(username: string | null) {
+  if (username) {
+    if (username.length > 23) {
+      username = username.slice(0, 23);
+
+      username += '...';
+    }
+
+    return username;
+  }
+}
+
 function Workspace({ config, username }: { config: AppConfig; username: string | null }) {
   const [page, setPage] = useState<Page>(pageFromPath);
   const chat = useChat(config);
@@ -40,16 +52,27 @@ function Workspace({ config, username }: { config: AppConfig; username: string |
         Skip to content
       </a>
       <aside className="fixed [inset:0_auto_0_0] z-[3] flex w-[235px] flex-col bg-sidebar px-[20px] pt-[34px] pb-0 text-[#d8e1db] compact:w-[205px] compact:px-[13px] tablet:w-[185px] mobile:relative mobile:block mobile:w-full mobile:px-[18px] mobile:pt-[17px] mobile:pb-[12px]">
-        <a
-          href="/"
-          className="flex items-center gap-[9px] px-[6px] py-0 text-[22px] font-semibold tracking-[-0.7px] tablet:text-[19px] mobile:p-0 mobile:text-[21px]"
-          onClick={(event) => navigate(event, 'chat')}
-        >
-          <span className="inline-flex items-center justify-center text-[#c4e7a6]">
-            <Icon name="leaf" size={24} />
-          </span>
-          EcoCompute<span className="ml-[-9px] text-[#bdd9a4]">.</span>
-        </a>
+        <div className="flex flex-row">
+          <a
+            href="/"
+            className="flex items-center gap-[9px] px-[6px] py-0 text-[22px] font-semibold tracking-[-0.7px] tablet:text-[19px] mobile:p-0 mobile:text-[21px]"
+            onClick={(event) => navigate(event, 'chat')}
+          >
+            <span className="inline-flex items-center justify-center text-[#c4e7a6]">
+              <Icon name="leaf" size={24} />
+            </span>
+            EcoCompute<span className="ml-[-9px] text-[#bdd9a4]">.</span>
+          </a>
+
+          {username && (
+            <button
+              onClick={() => signOut()}
+              className="visible ml-auto justify-self-start rounded-md border border-[#74896b] bg-transparent text-[#eef5e8] hover:bg-[#74896b] md:hidden"
+            >
+              Sign Out
+            </button>
+          )}
+        </div>
         <div className="mx-[14px] mt-[52px] mb-[15px] text-[9px] tracking-[1.9px] text-[#779487] mobile:hidden">
           WORKSPACE
         </div>
@@ -78,40 +101,30 @@ function Workspace({ config, username }: { config: AppConfig; username: string |
             <Icon name="chevron" size={13} />
           </a>
         </nav>
-        <div className="mt-auto flex items-center gap-[10px] border-t [border-top-style:solid] border-t-[#34473b] px-[4px] py-[21px] text-[11px] mobile:hidden [&_small]:mt-[3px] [&_small]:block [&_small]:text-[9px] [&_small]:text-[#829b8c] [&>span:last-child]:ml-auto">
-          <span className="grid h-[32px] w-[32px] place-items-center rounded-[6px] bg-[#2c4335] text-[#a0b796]">
-            <Icon name="globe" size={20} />
+        <div className="justify-left mt-auto flex items-center gap-[10px] border-t [border-top-style:solid] border-t-[#34473b] px-[4px] py-[21px] text-[11px] mobile:hidden [&_small]:mt-[3px] [&_small]:block [&_small]:text-[9px] [&_small]:text-[#829b8c] [&>span:last-child]:ml-auto">
+          <span className="grid h-[36px] w-[36px] place-items-center rounded-[8px] bg-[#2c4335] text-[#a0b796]">
+            <Icon name="user" size={24} />
           </span>
-          <div>
-            EcoCompute Lab<small>Azure · Microsoft Foundry</small>
+          <div className="flex flex-col items-start gap-1">
+            <span>{username ? userCharLimitCheck(username) : 'Research Environment'} </span>
+            {username && (
+              <button
+                onClick={() => signOut()}
+                className="justify-self-start rounded-md border border-[#74896b] bg-transparent text-[#eef5e8] hover:bg-[#74896b]"
+              >
+                Sign Out
+              </button>
+            )}
           </div>
-          <span className="inline-block h-[6px] w-[6px] shrink-0 rounded-[100%] bg-[#82a67f]" />
         </div>
       </aside>
       <div className="ml-[235px] flex min-h-screen w-[calc(100%_-_235px)] flex-col compact:ml-[205px] compact:w-[calc(100%_-_205px)] tablet:ml-[185px] tablet:w-[calc(100%_-_185px)] mobile:m-0 mobile:w-full">
-        {/* <header className="flex h-[73px] items-center justify-between border-b [border-bottom-style:solid] border-b-line bg-[#fafbf8] px-[38px] py-0 compact:px-[25px] compact:py-0 mobile:h-[48px] mobile:px-[18px] mobile:py-0">
-          <div className="flex items-center gap-[15px] text-[11px] text-[#69716a] mobile:gap-[8px] mobile:text-[10px] [&_strong]:font-medium [&_strong]:text-[#47574e]">
-            Workspace
-            <Icon name="chevron" size={13} />
-            <strong>{page === 'chat' ? 'Chat playground' : 'Cost explorer'}</strong>
-          </div>
-          {username ? (
-            <button className="text-[11px] text-[#64745a] underline" onClick={() => void signOut()}>
-              {username} · Sign out
-            </button>
-          ) : (
-            <span className="ml-auto flex items-center gap-[7px] rounded-[5px] border border-solid border-[#dce3d7] bg-[#f3f6ec] px-[9px] py-[5px] text-[10px] text-[#64745a] tablet:text-[9px] mobile:px-[7px] mobile:py-[3px] mobile:text-[8px]">
-              <span className="inline-block h-[6px] w-[6px] shrink-0 rounded-[100%] bg-[#82a67f]" />
-              Research environment
-            </span>
-          )}
-        </header> */}
         <main
           id="main"
           className="m-auto w-full max-w-[1580px] flex-1 px-[38px] pt-[34px] pb-[25px] wide:pt-[45px] compact:px-[25px] compact:pt-[28px] compact:pb-[24px] mobile:px-[18px] mobile:pt-[26px] mobile:pb-[20px]"
         >
           {page === 'chat' ? (
-            <ChatPage config={config} chat={chat} username={username} />
+            <ChatPage config={config} chat={chat} />
           ) : (
             <CostPage
               samples={chat.samples}

@@ -53,11 +53,8 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
     <>
       <div className="page-intro">
         <div>
-          <div className="mb-[10px] text-[10px] font-[650] tracking-[1.55px] text-[#76867b]">
-            THE PLAYGROUND
-          </div>
-          <h1>One prompt. Different possibilities.</h1>
-          <p>Talk to AI. Explore how your infrastructure changes the experience.</p>
+          <h1>Chat Playground</h1>
+          <p>Talk to AI, explore how infrastructure changes costs.</p>
         </div>
 
         <button

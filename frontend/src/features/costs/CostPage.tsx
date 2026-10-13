@@ -101,11 +101,8 @@ export function CostPage({
     <>
       <div className="page-intro">
         <div>
-          <div className="mb-[10px] text-[10px] font-[650] tracking-[1.55px] text-[#76867b]">
-            THE BIGGER PICTURE
-          </div>
-          <h1>Understand the cost of a conversation.</h1>
-          <p>Compare infrastructure spend. Keep model usage in perspective.</p>
+          <h1>Cost explorer</h1>
+          <p>Compare infrastructure spend.</p>
         </div>
         <div className="flex items-center gap-[9px] tablet:pt-[20px] mobile:pt-0">
           <Select
@@ -195,7 +192,6 @@ export function CostPage({
           <div className="flex shrink-0 items-center justify-between gap-[12px] px-[21px] py-[18px] [border:0] compact:p-[16px] mobile:px-[13px] mobile:py-[16px] [&_p]:mt-[5px] [&_p]:text-[10px] [&_p]:text-[#68735b]">
             <div>
               <h3>Daily cost over time</h3>
-              <p>Infrastructure and AI, side by side.</p>
             </div>
             <span className="text-[8px] tracking-[1.25px] whitespace-nowrap text-[#687169] compact:text-[7px] mobile:text-[6px] mobile:tracking-[0.7px]">
               {report?.currency ?? 'BILLING CURRENCY'}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '../../components/Icon';
+import { Select } from '../../components/Select';
 import { api } from '../../lib/api';
 import type { AppConfig, CostReport, Sample } from '../../lib/contracts';
 import { backendLabels } from '../../lib/contracts';
@@ -107,22 +108,20 @@ export function CostPage({
           <p>Compare infrastructure spend. Keep model usage in perspective.</p>
         </div>
         <div className="flex items-center gap-[9px] tablet:pt-[20px] mobile:pt-0">
-          <label className="sr-only" htmlFor="period">
-            Billing period
-          </label>
-          <select
-            className="rounded-[6px] border border-solid border-[#dce2d8] bg-white py-[9px] pr-[30px] pl-[12px] text-[11px] text-[#5c6e54]"
-            id="period"
-            value={days}
-            onChange={(event) => {
+          <Select
+            ariaLabel="Billing period"
+            className="w-[150px]"
+            value={String(days)}
+            options={[
+              { value: '7', label: 'Last 7 days' },
+              { value: '30', label: 'Last 30 days' },
+              { value: '90', label: 'Last 90 days' },
+            ]}
+            onChange={(value) => {
               setLoading(true);
-              setDays(Number(event.target.value) as 7 | 30 | 90);
+              setDays(Number(value) as 7 | 30 | 90);
             }}
-          >
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-          </select>
+          />
           {error && (
             <button
               className="secondary-button p-[10px]"

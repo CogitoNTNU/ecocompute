@@ -7,6 +7,10 @@ import { backendLabels } from '../../lib/contracts';
 import { formatDuration, formatNumber, money, summarize } from '../../lib/measurements';
 import { categories, CostChart } from './CostChart';
 
+const splitCurrency = (currency: string) => {
+  console.log(currency);
+};
+
 function exportMeasurements(samples: Sample[]) {
   const blob = new Blob(
     [

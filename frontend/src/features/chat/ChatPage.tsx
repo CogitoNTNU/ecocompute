@@ -158,9 +158,6 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
               {backendLabels[chat.backend]} <span className="text-muted">/</span>{' '}
               {modelLabel(chat.model)}
             </span>
-            <span className="text-[9px] tracking-[1.25px] whitespace-nowrap text-[#687169] mobile:tracking-[0.7px]">
-              MICROSOFT FOUNDRY
-            </span>
           </div>
           <div
             ref={conversation}

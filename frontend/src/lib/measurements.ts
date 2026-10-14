@@ -43,5 +43,5 @@ export const money = (value: number | undefined, currency: string | null) =>
     : new Intl.NumberFormat(undefined, {
         style: 'currency',
         currency,
-        maximumFractionDigits: Math.abs(value) < 1 ? 4 : 2,
+        maximumFractionDigits: 2,
       }).format(value);

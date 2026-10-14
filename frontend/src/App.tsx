@@ -73,11 +73,9 @@ function Workspace({ config, username }: { config: AppConfig; username: string |
             </button>
           )}
         </div>
-        <div className="mx-[14px] mt-[52px] mb-[15px] text-[9px] tracking-[1.9px] text-[#779487] mobile:hidden">
-          WORKSPACE
-        </div>
+
         <nav
-          className="grid gap-[7px] mobile:mt-[16px] mobile:flex mobile:gap-[8px]"
+          className="mt-8 grid gap-[7px] mobile:mt-[16px] mobile:flex mobile:gap-[8px]"
           aria-label="Main navigation"
         >
           <a

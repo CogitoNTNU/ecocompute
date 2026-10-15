@@ -102,7 +102,8 @@ test('routes model and backend independently, retains history and records measur
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Autoscale' }).click();
-  await page.getByRole('combobox', { name: 'AI model' }).selectOption('gpt-6-luna');
+  await page.getByRole('button', { name: 'AI model' }).click();
+  await page.getByRole('option', { name: 'GPT-6 Luna', exact: true }).click();
   await expect(page.locator('#model-pricing')).toContainText('$0.005');
   await page.getByRole('textbox', { name: 'Message' }).fill('Hello');
   await page.getByRole('button', { name: 'Send message' }).click();
@@ -150,7 +151,8 @@ test('offers a newly configured model and its estimated token price', async ({ p
     });
   });
   await page.goto('/');
-  await page.getByRole('combobox', { name: 'AI model' }).selectOption('research-model');
+  await page.getByRole('button', { name: 'AI model' }).click();
+  await page.getByRole('option', { name: 'Research model', exact: true }).click();
   await expect(page.locator('#model-pricing')).toContainText('$0.0025');
   await page.getByRole('textbox', { name: 'Message' }).fill('Hello');
   await page.getByRole('button', { name: 'Send message' }).click();
@@ -219,6 +221,7 @@ test('recovers a failed prompt and disables unconfigured models', async ({ page 
     route.fulfill({ status: 429, json: { detail: 'Foundry is rate limited.' } }),
   );
   await page.goto('/');
+  await page.getByRole('button', { name: 'AI model' }).click();
   await expect(page.getByRole('option', { name: /GPT-6 Luna/ })).toBeDisabled();
   await page.getByRole('textbox', { name: 'Message' }).fill('Keep my draft');
   await page.getByRole('button', { name: 'Send message' }).click();

@@ -4,6 +4,7 @@ import { backendLabels } from '../../lib/contracts';
 import { formatDuration, formatNumber, summarize } from '../../lib/measurements';
 import { estimatedModelCost, formatEstimatedUsd } from '../../lib/modelPricing';
 import { Icon } from '../../components/Icon';
+import { Select } from '../../components/Select';
 import type { ChatController } from './useChat';
 import Markdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -52,12 +53,10 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
     <>
       <div className="page-intro">
         <div>
-          <div className="mb-[10px] text-[10px] font-[650] tracking-[1.55px] text-[#76867b]">
-            THE PLAYGROUND
-          </div>
-          <h1>One prompt. Different possibilities.</h1>
-          <p>Talk to AI. Explore how your infrastructure changes the experience.</p>
+          <h1>Chat Playground</h1>
+          <p>Talk to AI, explore how infrastructure changes costs.</p>
         </div>
+
         <button
           className="secondary-button tablet:mt-[23px] mobile:mt-0"
           onClick={chat.clear}
@@ -103,21 +102,22 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
             02{' '}
             <span className="ml-[7px] text-[10px] tracking-[0.2px] text-[#687a6e]">AI model</span>
           </legend>
-          <select
-            aria-label="AI model"
-            aria-describedby="model-pricing"
-            className="w-[240px] max-w-full min-w-0 rounded-[8px] border border-solid border-[#dbe3d6] bg-white px-[12px] py-[9px] text-[11px] text-[#315f46] mobile:w-full"
+          <Select
+            ariaLabel="AI model"
+            ariaDescribedBy="model-pricing"
+            className="w-[240px] max-w-full mobile:w-full"
             value={chat.model}
-            onChange={(event) => chat.setModel(event.target.value)}
-          >
-            {config.models.length === 0 && <option value="">No models configured</option>}
-            {config.models.map((model) => (
-              <option key={model.id} value={model.id} disabled={!model.enabled}>
-                {model.label}
-                {!model.enabled ? ' · Unavailable' : ''}
-              </option>
-            ))}
-          </select>
+            options={
+              config.models.length === 0
+                ? [{ value: '', label: 'No models configured' }]
+                : config.models.map((model) => ({
+                    value: model.id,
+                    label: `${model.label}${!model.enabled ? ' · Unavailable' : ''}`,
+                    disabled: !model.enabled,
+                  }))
+            }
+            onChange={chat.setModel}
+          />
           <div
             id="model-pricing"
             className="mt-[7px] max-w-[350px] text-[9px] leading-[1.6] text-[#697166]"
@@ -157,9 +157,6 @@ export function ChatPage({ config, chat }: { config: AppConfig; chat: ChatContro
               />
               {backendLabels[chat.backend]} <span className="text-muted">/</span>{' '}
               {modelLabel(chat.model)}
-            </span>
-            <span className="text-[9px] tracking-[1.25px] whitespace-nowrap text-[#687169] mobile:tracking-[0.7px]">
-              MICROSOFT FOUNDRY
             </span>
           </div>
           <div

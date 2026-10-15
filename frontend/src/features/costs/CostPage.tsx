@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '../../components/Icon';
+import { Select } from '../../components/Select';
 import { api } from '../../lib/api';
 import type { AppConfig, CostReport, Sample } from '../../lib/contracts';
 import { backendLabels } from '../../lib/contracts';
@@ -100,29 +101,24 @@ export function CostPage({
     <>
       <div className="page-intro">
         <div>
-          <div className="mb-[10px] text-[10px] font-[650] tracking-[1.55px] text-[#76867b]">
-            THE BIGGER PICTURE
-          </div>
-          <h1>Understand the cost of a conversation.</h1>
-          <p>Compare infrastructure spend. Keep model usage in perspective.</p>
+          <h1>Cost explorer</h1>
+          <p>Compare infrastructure spend.</p>
         </div>
         <div className="flex items-center gap-[9px] tablet:pt-[20px] mobile:pt-0">
-          <label className="sr-only" htmlFor="period">
-            Billing period
-          </label>
-          <select
-            className="rounded-[6px] border border-solid border-[#dce2d8] bg-white py-[9px] pr-[30px] pl-[12px] text-[11px] text-[#5c6e54]"
-            id="period"
-            value={days}
-            onChange={(event) => {
+          <Select
+            ariaLabel="Billing period"
+            className="w-[150px]"
+            value={String(days)}
+            options={[
+              { value: '7', label: 'Last 7 days' },
+              { value: '30', label: 'Last 30 days' },
+              { value: '90', label: 'Last 90 days' },
+            ]}
+            onChange={(value) => {
               setLoading(true);
-              setDays(Number(event.target.value) as 7 | 30 | 90);
+              setDays(Number(value) as 7 | 30 | 90);
             }}
-          >
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-          </select>
+          />
           {error && (
             <button
               className="secondary-button p-[10px]"
@@ -196,7 +192,6 @@ export function CostPage({
           <div className="flex shrink-0 items-center justify-between gap-[12px] px-[21px] py-[18px] [border:0] compact:p-[16px] mobile:px-[13px] mobile:py-[16px] [&_p]:mt-[5px] [&_p]:text-[10px] [&_p]:text-[#68735b]">
             <div>
               <h3>Daily cost over time</h3>
-              <p>Infrastructure and AI, side by side.</p>
             </div>
             <span className="text-[8px] tracking-[1.25px] whitespace-nowrap text-[#687169] compact:text-[7px] mobile:text-[6px] mobile:tracking-[0.7px]">
               {report?.currency ?? 'BILLING CURRENCY'}
